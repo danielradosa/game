@@ -8,4 +8,4 @@ export const CY = 7, JB = 6, WS = 2.6, FM = 13;
 export const JUMP_CUT = 0.5;
 export const PW = 22, PH = 32;
 export const xpFor = (l) => Math.floor(80 + l * 28);
-export const DUST = '#d4b896';
+export const DUST = '#cfaf87';
