@@ -223,6 +223,51 @@ export default function App() {
     } else pushNotif("Save failed", "xp")
   }, [manifest, pushNotif])
 
+  // Autosave: writes to a reserved "autosave" slot every 20s while playing.
+  // Replaces the existing autosave manifest entry in place so the load menu
+  // shows exactly one autosave row, not 180/hr. Skipped while paused, in a
+  // dialog, or out of the play scene. Silent — no toast, since 20s notifs
+  // would be obnoxious.
+  const autosave = useCallback((): void => {
+    const s = stateRef.current
+    if (!s) return
+    const id = "autosave"
+    const data = {
+      character: charRef.current,
+      hud: hudRef.current,
+      pos: { x: s.p.x, y: s.p.y, scene: s.current },
+      collected: Array.from(s.collected),
+      defeatedEnemies: Array.from(s.defeatedEnemies),
+      delveCleared: s.delveCleared,
+    }
+    const meta = {
+      id,
+      name: charRef.current.name + " — autosave",
+      level: hudRef.current.level,
+      materials: hudRef.current.materials,
+      discovered: hudRef.current.discovered.length,
+      date: new Date().toISOString(),
+      where: s.current === "delve" ? "In the Delve" : "Surface",
+    }
+    if (!setSave(id, data)) return
+    setManifest((m) => {
+      const next = [meta, ...m.filter((e) => e.id !== id)]
+      persistManifest(next)
+      return next
+    })
+  }, [])
+
+  useEffect(() => {
+    if (scene !== "play") return
+    const tick = (): void => {
+      if (pausedRef.current) return
+      if (dialogRef.current !== null) return
+      autosave()
+    }
+    const handle = window.setInterval(tick, 20_000)
+    return () => window.clearInterval(handle)
+  }, [scene, autosave])
+
   const startGameFresh = useCallback((): void => {
     const ow = buildOverworld(),
       dl = buildDelve()
