@@ -58,8 +58,15 @@ export interface OverworldLevel extends BaseLevel {
   ground: number[]
 }
 
+export interface EnemySpawn {
+  type: EnemyType
+  x: number
+  y: number
+}
+
 export interface DelveLevel extends BaseLevel {
   theme: "delve"
+  enemySpawns: EnemySpawn[]
 }
 
 export type Level = OverworldLevel | DelveLevel
@@ -121,6 +128,12 @@ export interface PlayerState {
   prevY: number
   peakFall: number
 
+  // Render interpolation snapshot — position at the START of the current tick.
+  // Render lerps between this and (x, y) by alpha = accumulator / TICK_MS so
+  // motion stays smooth on displays whose refresh rate isn't a multiple of 60.
+  renderPrevX: number
+  renderPrevY: number
+
   // Warframe-style abilities. Booleans are gates; *Frames are countdowns.
   airDashUsed: boolean
   aimGlideUsed: boolean
@@ -129,6 +142,32 @@ export interface PlayerState {
   sliding: boolean
   slideFrames: number
   iframes: number
+
+  // Combat
+  hp: number
+  maxHp: number
+  damageIframes: number // post-hit invulnerability (separate from roll iframes)
+  slashFrames: number // active slash window — sword is "out" when > 0
+  slashCool: number // gap between auto-slashes so overlap doesn't multi-hit
+  dead: boolean // set on hp<=0; cleared after respawn snap
+}
+
+// ===== Enemy =====
+export type EnemyType = "ghost"
+
+export interface Enemy {
+  type: EnemyType
+  spawnIndex: number // matches the index in DelveLevel.enemySpawns
+  x: number
+  y: number
+  vx: number
+  vy: number
+  hp: number
+  maxHp: number
+  iframes: number
+  alive: boolean
+  facing: -1 | 1
+  bob: number // visual oscillation phase
 }
 
 // ===== Game state =====
@@ -139,8 +178,14 @@ export interface GameState {
   current: SceneId
   level: Level
   cam: Camera
+  prevCamX: number
+  prevCamY: number
   p: PlayerState
-  collected: Set<string> // "tx,ty" keys of pickups already grabbed
+  enemies: Enemy[] // active for the current scene; rebuilt on transition
+  defeatedEnemies: Set<number> // delve spawnIndex values, persistent for the run
+  delveCleared: boolean // true once every delve enemy has been defeated
+  hitStop: number // when > 0, physics ticks freeze for this many frames (impact pause)
+  collected: Set<string> // "<scene>:<tx>,<ty>" keys of pickups already grabbed
   particles: Particle[]
   bgPart: BgParticle[]
   time: number
@@ -186,4 +231,13 @@ export interface PhysicsCallbacks {
   getMaterials: () => number
   transitionToDelve: () => void
   transitionToOver: () => void
+  hasSword: () => boolean
+  setHp: (hp: number) => void
+  onDeath: () => void
+  notify: (text: string, kind: NotifKind) => void
+  openDialog: (npc: NpcId) => void
+  onDelveClear: () => void
+  getMods: () => readonly string[]
 }
+
+export type NpcId = "elder"

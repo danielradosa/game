@@ -4,19 +4,35 @@ import {
   TILE_SIZE,
   VIEWPORT_HEIGHT,
   VIEWPORT_WIDTH,
+  ENEMY_WIDTH,
+  ENEMY_HEIGHT,
+  SLASH_FRAMES,
 } from "@/game/constants"
 import { ASSET_SIZES, SPRITES, isReady, tryDrawSprite } from "@/game/sprites"
 import type { Character, GameState, Theme, TileChar } from "@/game/types/physics"
 
 type Ctx = CanvasRenderingContext2D
 
-export function draw(ctx: Ctx, s: GameState, ch: Character): void {
+export function draw(ctx: Ctx, s: GameState, ch: Character, alpha: number): void {
   // Reset to a transform that maps world units (VIEWPORT_WIDTH × VIEWPORT_HEIGHT)
   // onto the canvas's actual pixel buffer. App.tsx resizes the buffer to match
   // CSS pixels × devicePixelRatio, so this gives us native-resolution rendering.
   const cv = ctx.canvas
   const scale = cv.width / VIEWPORT_WIDTH
   ctx.setTransform(scale, 0, 0, scale, 0, 0)
+
+  // Render-time interpolation: physics ticks at fixed 60 Hz, render at native
+  // refresh. Lerp player + camera between pre-tick and post-tick state so the
+  // 2/3/2/3 tick distribution on 144 Hz doesn't read as stutter. Mutate in
+  // place across the draw, restore at the end so physics never sees the lerp.
+  const realPx = s.p.x,
+    realPy = s.p.y
+  const realCx = s.cam.x,
+    realCy = s.cam.y
+  s.p.x = s.p.renderPrevX + (realPx - s.p.renderPrevX) * alpha
+  s.p.y = s.p.renderPrevY + (realPy - s.p.renderPrevY) * alpha
+  s.cam.x = s.prevCamX + (realCx - s.prevCamX) * alpha
+  s.cam.y = s.prevCamY + (realCy - s.prevCamY) * alpha
 
   const lv = s.level
   ctx.save()
@@ -36,6 +52,7 @@ export function draw(ctx: Ctx, s: GameState, ch: Character): void {
   ctx.globalAlpha = 1
   drawTiles(ctx, s)
   drawEntities(ctx, s)
+  drawEnemies(ctx, s)
   for (const pt of s.particles) {
     ctx.globalAlpha = Math.max(0, pt.life / pt.max)
     ctx.fillStyle = pt.color
@@ -45,6 +62,7 @@ export function draw(ctx: Ctx, s: GameState, ch: Character): void {
   }
   ctx.globalAlpha = 1
   drawPlayer(ctx, s, ch)
+  drawSlash(ctx, s, ch)
   ctx.restore()
   const vg = ctx.createRadialGradient(
     VIEWPORT_WIDTH / 2,
@@ -58,6 +76,11 @@ export function draw(ctx: Ctx, s: GameState, ch: Character): void {
   vg.addColorStop(1, lv.theme === "delve" ? "rgba(20,5,40,0.55)" : "rgba(20,15,40,0.35)")
   ctx.fillStyle = vg
   ctx.fillRect(0, 0, VIEWPORT_WIDTH, VIEWPORT_HEIGHT)
+
+  s.p.x = realPx
+  s.p.y = realPy
+  s.cam.x = realCx
+  s.cam.y = realCy
 }
 
 export function drawPaused(ctx: Ctx): void {
@@ -232,7 +255,7 @@ function drawEntities(ctx: Ctx, s: GameState): void {
       const c = map[ty]?.[tx],
         x = tx * TILE_SIZE,
         y = ty * TILE_SIZE,
-        key = tx + "," + ty
+        key = s.current + ":" + tx + "," + ty
       if (c === "c" && !s.collected.has(key)) {
         const bob = Math.sin(s.time * 0.005 + tx) * 4
         const cx = x + TILE_SIZE / 2,
@@ -340,21 +363,85 @@ function drawEntities(ctx: Ctx, s: GameState): void {
       } else if (c === "n") {
         const cx = x + TILE_SIZE / 2,
           by = y + TILE_SIZE - 4
-        if (tryDrawSprite(ctx, "npc", cx, by)) continue
-        ctx.fillStyle = "#3a2030"
-        ctx.beginPath()
-        ctx.ellipse(cx, by + 2, 10, 3, 0, 0, Math.PI * 2)
-        ctx.fill()
-        ctx.fillStyle = "#5a4480"
-        ctx.fillRect(cx - 8, by - 22, 16, 18)
-        ctx.fillStyle = "#e8c1a0"
-        ctx.beginPath()
-        ctx.arc(cx, by - 28, 7, 0, Math.PI * 2)
-        ctx.fill()
-        ctx.fillStyle = "#3a2820"
-        ctx.fillRect(cx - 7, by - 33, 14, 6)
+        if (!tryDrawSprite(ctx, "npc", cx, by)) {
+          ctx.fillStyle = "#3a2030"
+          ctx.beginPath()
+          ctx.ellipse(cx, by + 2, 10, 3, 0, 0, Math.PI * 2)
+          ctx.fill()
+          ctx.fillStyle = "#5a4480"
+          ctx.fillRect(cx - 8, by - 22, 16, 18)
+          ctx.fillStyle = "#e8c1a0"
+          ctx.beginPath()
+          ctx.arc(cx, by - 28, 7, 0, Math.PI * 2)
+          ctx.fill()
+          ctx.fillStyle = "#3a2820"
+          ctx.fillRect(cx - 7, by - 33, 14, 6)
+        }
+        ctx.fillStyle = "rgba(255,255,255,0.85)"
+        ctx.font = "12px sans-serif"
+        ctx.textAlign = "center"
+        ctx.fillText("[E] Talk", cx, y - 8)
       }
     }
+}
+
+function drawEnemies(ctx: Ctx, s: GameState): void {
+  for (const e of s.enemies) {
+    if (!e.alive) continue
+    const cx = e.x + ENEMY_WIDTH / 2
+    const cy = e.y + ENEMY_HEIGHT / 2 + Math.sin(e.bob) * 3
+    const flash = e.iframes > 0 && (e.iframes & 2) === 0
+    // Trailing wisp
+    ctx.globalAlpha = 0.25
+    ctx.fillStyle = "#5a3a8a"
+    ctx.beginPath()
+    ctx.ellipse(cx, cy + 8, ENEMY_WIDTH * 0.6, 5, 0, 0, Math.PI * 2)
+    ctx.fill()
+    // Body
+    ctx.globalAlpha = 0.92
+    ctx.fillStyle = flash ? "#ffffff" : "#9a6ad8"
+    ctx.beginPath()
+    ctx.arc(cx, cy, ENEMY_WIDTH / 2, 0, Math.PI * 2)
+    ctx.fill()
+    // Eyes
+    ctx.globalAlpha = 1
+    ctx.fillStyle = flash ? "#9a6ad8" : "#1a0a2a"
+    const ex = e.facing > 0 ? 3 : -3
+    ctx.beginPath()
+    ctx.arc(cx - 4 + ex, cy - 2, 2, 0, Math.PI * 2)
+    ctx.arc(cx + 4 + ex, cy - 2, 2, 0, Math.PI * 2)
+    ctx.fill()
+    // HP pip row above
+    if (e.hp < e.maxHp) {
+      for (let i = 0; i < e.maxHp; i++) {
+        ctx.fillStyle = i < e.hp ? "#ff6080" : "#3a2050"
+        ctx.fillRect(cx - e.maxHp * 3 + i * 6, cy - ENEMY_HEIGHT / 2 - 6, 4, 3)
+      }
+    }
+  }
+  ctx.globalAlpha = 1
+}
+
+function drawSlash(ctx: Ctx, s: GameState, ch: Character): void {
+  const p = s.p
+  if (p.slashFrames <= 0) return
+  const t = 1 - p.slashFrames / SLASH_FRAMES // 0 → 1 progress
+  const cx = p.x + PLAYER_WIDTH / 2 + p.facing * 14
+  const cy = p.y + PLAYER_HEIGHT / 2
+  const radius = 18 + t * 14
+  const sweep = Math.PI * 0.9
+  const start = p.facing > 0 ? -sweep / 2 : Math.PI - sweep / 2
+  ctx.save()
+  ctx.globalAlpha = 1 - t
+  ctx.strokeStyle = ch.accent
+  ctx.lineWidth = 4
+  ctx.beginPath()
+  ctx.arc(cx, cy, radius, start, start + sweep)
+  ctx.stroke()
+  ctx.globalAlpha = (1 - t) * 0.4
+  ctx.lineWidth = 9
+  ctx.stroke()
+  ctx.restore()
 }
 
 function drawPlayer(ctx: Ctx, s: GameState, ch: Character): void {

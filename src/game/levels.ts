@@ -1,5 +1,10 @@
 import { TILE_SIZE } from "@/game/constants"
-import type { DelveLevel, OverworldLevel, TileChar } from "@/game/types/physics"
+import type {
+  DelveLevel,
+  EnemySpawn,
+  OverworldLevel,
+  TileChar,
+} from "@/game/types/physics"
 
 // Plat / cell coordinate tables. Typed as fixed-arity tuples so destructuring
 // gives proper `number`s rather than `number | undefined` under
@@ -128,7 +133,23 @@ export function buildDelve(): DelveLevel {
   m[3]![12] = "C"
   m[H - 2]![2] = "r"
 
-  return { map: m, W, H, spawn: { x: 4 * TILE_SIZE, y: (H - 3) * TILE_SIZE }, theme: "delve" }
+  // Ghost enemies float toward the player — no terrain collision (intentional:
+  // they pass through walls, keeping the AI trivially small for v1).
+  const enemySpawns: EnemySpawn[] = [
+    { type: "ghost", x: 8 * TILE_SIZE, y: 25 * TILE_SIZE },
+    { type: "ghost", x: 10 * TILE_SIZE, y: 17 * TILE_SIZE },
+    { type: "ghost", x: 8 * TILE_SIZE, y: 11 * TILE_SIZE },
+    { type: "ghost", x: 12 * TILE_SIZE, y: 5 * TILE_SIZE },
+  ]
+
+  return {
+    map: m,
+    W,
+    H,
+    spawn: { x: 4 * TILE_SIZE, y: (H - 3) * TILE_SIZE },
+    theme: "delve",
+    enemySpawns,
+  }
 }
 
 // Used by physics.ts to classify tiles. Accepts `undefined` because callers

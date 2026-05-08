@@ -1,13 +1,26 @@
 import { useState, useRef, useEffect, useCallback } from "react"
 import { TILE_SIZE, VIEWPORT_WIDTH, VIEWPORT_HEIGHT, xpForLevel } from "@/game/constants"
-import { ZONES, ACHIEVEMENTS, SKINS, HAIRS, SHIRTS, PANTS, ACCENTS } from "@/game/data"
+import { ZONES, ACHIEVEMENTS, SKINS, HAIRS, SHIRTS, PANTS, ACCENTS, MODS } from "@/game/data"
 import type { AchievementId, ZoneId } from "@/game/data"
 import { buildOverworld, buildDelve } from "@/game/levels"
-import { stepGame, makeInitialState } from "@/game/physics"
+import {
+  stepGame,
+  makeInitialState,
+  snapRenderPrev,
+  spawnEnemiesFrom,
+} from "@/game/physics"
+import { PLAYER_MAX_HP } from "@/game/constants"
 import { draw, drawPaused } from "@/game/render"
 import { playSnd, setMuted as setMutedAudio } from "@/game/audio"
 import { fetchManifest, persistManifest, getSave, setSave, deleteSave } from "@/game/save"
-import { MainMenu, About, LoadMenu, CharacterCreator, InventoryPanel } from "@/ui/screens"
+import {
+  MainMenu,
+  About,
+  LoadMenu,
+  CharacterCreator,
+  InventoryPanel,
+  DialogPanel,
+} from "@/ui/screens"
 import type {
   AppNotification,
   AppScene,
@@ -15,6 +28,7 @@ import type {
   GameState,
   InputState,
   NotifKind,
+  NpcId,
   PhysicsCallbacks,
   ZoneBanner,
 } from "@/game/types/physics"
@@ -41,7 +55,14 @@ export default function App() {
     discovered: [],
     achievements: [],
     inDelve: false,
+    hasSword: false,
+    questStage: "intro",
+    mods: [],
   })
+  const [hp, setHp] = useState<number>(PLAYER_MAX_HP)
+  const [dialogNpc, setDialogNpc] = useState<NpcId | null>(null)
+  const dialogRef = useRef<NpcId | null>(null)
+  dialogRef.current = dialogNpc
   const [notifs, setNotifs] = useState<AppNotification[]>([])
   const [zoneBanner, setZoneBanner] = useState<ZoneBanner | null>(null)
   const [manifest, setManifest] = useState<SaveManifest>([])
@@ -138,7 +159,14 @@ export default function App() {
     s.p.vy = 0
     s.p.dashFrames = 0
     s.p.dashCool = 0
-    s.collected = new Set<string>()
+    // Collected stars and defeated enemies persist across transitions for the
+    // duration of this run — re-entry brings non-defeated enemies back to
+    // their spawns, leaves cleared ones gone, and keeps the cleared flag so
+    // the portal stays unlocked.
+    s.enemies = spawnEnemiesFrom(s.dl.enemySpawns, s.defeatedEnemies)
+    s.p.hp = s.p.maxHp
+    setHp(s.p.hp)
+    snapRenderPrev(s)
     setHud((h) => ({ ...h, inDelve: true }))
     grantAch("a7")
     pushNotif("Entered the Delve", "discovery")
@@ -157,6 +185,10 @@ export default function App() {
     s.p.vy = 0
     s.p.dashFrames = 0
     s.p.dashCool = 0
+    s.enemies = []
+    s.p.hp = s.p.maxHp
+    setHp(s.p.hp)
+    snapRenderPrev(s)
     setHud((h) => ({ ...h, inDelve: false }))
     pushNotif("Returned to the surface", "discovery")
     playSnd("portal")
@@ -171,6 +203,8 @@ export default function App() {
       hud: hudRef.current,
       pos: { x: s.p.x, y: s.p.y, scene: s.current },
       collected: Array.from(s.collected),
+      defeatedEnemies: Array.from(s.defeatedEnemies),
+      delveCleared: s.delveCleared,
     }
     const meta = {
       id,
@@ -193,7 +227,18 @@ export default function App() {
     const ow = buildOverworld(),
       dl = buildDelve()
     stateRef.current = makeInitialState(ow, dl, ow.spawn.x, ow.spawn.y, "over", new Set<string>())
-    setHud({ level: 1, xp: 0, materials: 0, discovered: [], achievements: [], inDelve: false })
+    setHud({
+      level: 1,
+      xp: 0,
+      materials: 0,
+      discovered: [],
+      achievements: [],
+      inDelve: false,
+      hasSword: false,
+      questStage: "intro",
+      mods: [],
+    })
+    setHp(PLAYER_MAX_HP)
     setNotifs([])
     setPaused(false)
     setShowInv(false)
@@ -216,9 +261,21 @@ export default function App() {
         data.pos.y,
         data.pos.scene,
         new Set<string>(data.collected || []),
+        new Set<number>(data.defeatedEnemies || []),
+        data.delveCleared ?? false,
       )
       setCharacter(data.character)
-      setHud({ ...data.hud, inDelve: data.pos.scene === "delve" })
+      // Older saves predate the quest/mods/sword fields — default forward
+      // (sword granted, quest pre-completed, no mods) so the run remains
+      // playable without forcing a re-do.
+      setHud({
+        ...data.hud,
+        hasSword: data.hud.hasSword ?? true,
+        questStage: data.hud.questStage ?? "done",
+        mods: data.hud.mods ?? [],
+        inDelve: data.pos.scene === "delve",
+      })
+      setHp(PLAYER_MAX_HP)
       setNotifs([])
       setPaused(false)
       setShowInv(false)
@@ -239,7 +296,14 @@ export default function App() {
 
   useEffect(() => {
     const inp = inputRef.current
+    const isEditable = (t: EventTarget | null): boolean => {
+      const el = t as HTMLElement | null
+      if (!el) return false
+      const tag = el.tagName
+      return tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || el.isContentEditable
+    }
     const down = (e: KeyboardEvent): void => {
+      if (isEditable(e.target)) return
       const k = e.key.toLowerCase()
       if (["arrowleft", "a"].includes(k)) inp.left = true
       if (["arrowright", "d"].includes(k)) inp.right = true
@@ -266,6 +330,7 @@ export default function App() {
       if (["arrowup", "arrowdown", "arrowleft", "arrowright", " "].includes(k)) e.preventDefault()
     }
     const up = (e: KeyboardEvent): void => {
+      if (isEditable(e.target)) return
       const k = e.key.toLowerCase()
       if (["arrowleft", "a"].includes(k)) inp.left = false
       if (["arrowright", "d"].includes(k)) inp.right = false
@@ -321,28 +386,60 @@ export default function App() {
       getMaterials: () => hudRef.current.materials,
       transitionToDelve,
       transitionToOver,
+      hasSword: () => hudRef.current.hasSword,
+      setHp,
+      onDeath: () => pushNotif("You fell — respawning", "xp"),
+      notify: pushNotif,
+      openDialog: (id) => setDialogNpc(id),
+      onDelveClear: () => {
+        // Auto-advance the quest line so the dialog reflects "return to me"
+        // on the next interaction. Safe to call repeatedly — we only bump
+        // when the player is actually mid-quest.
+        setHud((h) => (h.questStage === "active" ? { ...h, questStage: "cleared" } : h))
+      },
+      getMods: () => hudRef.current.mods,
     }
-    let raf = 0,
-      last = performance.now()
+    // Physics is authored at 60 Hz (per-tick velocities, frame counters,
+    // exponential frictions). To stay identical on 144 Hz / 240 Hz monitors we
+    // run a fixed 60 Hz tick driven by a time accumulator, while rendering at
+    // the display's native rate.
+    const TICK_MS = 1000 / 60
+    const MAX_CATCHUP_TICKS = 5
+    let raf = 0
+    let last = performance.now()
+    let accumulator = 0
     const loop = (now: number): void => {
-      const dt = Math.min(33, now - last)
+      const frame = Math.min(100, now - last)
       last = now
       const s = stateRef.current
       if (!s) {
         raf = requestAnimationFrame(loop)
         return
       }
-      if (!pausedRef.current) {
-        stepGame(s, inputRef.current, charRef.current, callbacks, dt)
-        draw(ctx, s, charRef.current)
-      } else {
+      const frozen = pausedRef.current || dialogRef.current !== null
+      if (!frozen) {
+        accumulator += frame
+        let ticks = 0
+        while (accumulator >= TICK_MS && ticks < MAX_CATCHUP_TICKS) {
+          stepGame(s, inputRef.current, charRef.current, callbacks, TICK_MS)
+          accumulator -= TICK_MS
+          ticks++
+        }
+        if (ticks === MAX_CATCHUP_TICKS) accumulator = 0
+        const alpha = Math.min(1, accumulator / TICK_MS)
+        draw(ctx, s, charRef.current, alpha)
+      } else if (pausedRef.current) {
         drawPaused(ctx)
+      } else {
+        // Dialog open — keep the world drawn but don't tick physics.
+        accumulator = 0
+        draw(ctx, s, charRef.current, 1)
       }
       raf = requestAnimationFrame(loop)
     }
     raf = requestAnimationFrame(loop)
     return () => cancelAnimationFrame(raf)
-  }, [scene, grantAch, grantXP, discover, transitionToDelve, transitionToOver])
+  }, [scene, grantAch, grantXP, discover, transitionToDelve, transitionToOver, pushNotif])
 
   if (scene === "menu")
     return (
@@ -404,6 +501,17 @@ export default function App() {
             </div>
             <div className="text-[10px] text-stone-400 mt-0.5">
               {hud.xp} / {xpForLevel(hud.level)} XP
+            </div>
+            <div className="flex gap-1 mt-1.5">
+              {Array.from({ length: PLAYER_MAX_HP }).map((_, i) => (
+                <div
+                  key={i}
+                  className={
+                    "w-3.5 h-3.5 rounded-sm " +
+                    (i < hp ? "bg-red-400 shadow-[0_0_4px_rgba(255,80,96,0.7)]" : "bg-stone-700")
+                  }
+                />
+              ))}
             </div>
           </div>
           <div className="bg-black/40 backdrop-blur rounded-lg px-3 py-2 text-white text-sm">
@@ -518,6 +626,32 @@ export default function App() {
         )}
         {showInv && (
           <InventoryPanel hud={hud} character={character} onClose={() => setShowInv(false)} />
+        )}
+        {dialogNpc !== null && (
+          <DialogPanel
+            hud={hud}
+            onClose={() => setDialogNpc(null)}
+            onAcceptQuest={() => {
+              setHud((h) => ({ ...h, hasSword: true, questStage: "active" }))
+              pushNotif("Acquired: Worn Blade", "ach")
+              playSnd("collect")
+            }}
+            onTurnInQuest={() => {
+              setHud((h) => ({ ...h, questStage: "done", materials: h.materials + 5 }))
+              grantXP(120, "quest")
+              pushNotif("Quest complete — +5 materials", "level")
+              playSnd("level_up")
+            }}
+            onCraft={(modId) => {
+              setHud((h) => {
+                const mod = MODS.find((m) => m.id === modId)
+                if (!mod || h.mods.includes(mod.id) || h.materials < mod.cost) return h
+                return { ...h, materials: h.materials - mod.cost, mods: [...h.mods, mod.id] }
+              })
+              pushNotif("Forged: " + (MODS.find((m) => m.id === modId)?.name ?? "?"), "ach")
+              playSnd("big_collect")
+            }}
+          />
         )}
       </div>
     </div>

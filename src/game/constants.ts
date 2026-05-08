@@ -29,3 +29,24 @@ export const PLAYER_HEIGHT = 32
 export const xpForLevel = (level: number) => Math.floor(80 + level * 28)
 
 export const DUST_COLOR = "#cfaf87"
+
+export const MAGNET_RADIUS = 80
+
+export const PLAYER_MAX_HP = 3
+export const DAMAGE_IFRAMES = 60
+export const DAMAGE_KNOCKBACK_VX = 5.5
+export const DAMAGE_KNOCKBACK_VY = -6
+
+export const SLASH_FRAMES = 12
+export const SLASH_COOLDOWN = 18
+export const SLASH_DAMAGE = 1
+export const SLASH_REACH = 10
+
+export const ENEMY_WIDTH = 26
+export const ENEMY_HEIGHT = 26
+export const ENEMY_HP = 2
+export const ENEMY_HIT_IFRAMES = 14
+export const ENEMY_KNOCKBACK = 4
+export const ENEMY_CHASE_SPEED = 1.5
+export const ENEMY_KILL_XP = 25
+export const ENEMY_KILL_MATERIALS = 1

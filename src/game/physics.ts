@@ -17,6 +17,23 @@ import {
   MAX_FALL_SPEED,
   JUMP_CUT_MULTIPLIER,
   DUST_COLOR,
+  MAGNET_RADIUS,
+  PLAYER_MAX_HP,
+  DAMAGE_IFRAMES,
+  DAMAGE_KNOCKBACK_VX,
+  DAMAGE_KNOCKBACK_VY,
+  SLASH_FRAMES,
+  SLASH_COOLDOWN,
+  SLASH_DAMAGE,
+  SLASH_REACH,
+  ENEMY_WIDTH,
+  ENEMY_HEIGHT,
+  ENEMY_HP,
+  ENEMY_HIT_IFRAMES,
+  ENEMY_KNOCKBACK,
+  ENEMY_CHASE_SPEED,
+  ENEMY_KILL_XP,
+  ENEMY_KILL_MATERIALS,
 } from "@/game/constants"
 import { ZONES } from "@/game/data"
 import { isSolid, isPlat } from "@/game/levels"
@@ -29,6 +46,8 @@ import type {
   OverworldLevel,
   DelveLevel,
   SceneId,
+  Enemy,
+  EnemySpawn,
 } from "@/game/types/physics"
 
 const BULLET_VX = 11.5 // bullet jump horizontal speed
@@ -70,6 +89,38 @@ export function addParticles(
   }
 }
 
+export function spawnEnemiesFrom(
+  spawns: readonly EnemySpawn[],
+  defeated: ReadonlySet<number>,
+): Enemy[] {
+  const out: Enemy[] = []
+  spawns.forEach((sp, i) => {
+    if (defeated.has(i)) return
+    out.push({
+      type: sp.type,
+      spawnIndex: i,
+      x: sp.x,
+      y: sp.y,
+      vx: 0,
+      vy: 0,
+      hp: ENEMY_HP,
+      maxHp: ENEMY_HP,
+      iframes: 0,
+      alive: true,
+      facing: 1,
+      bob: Math.random() * Math.PI * 2,
+    })
+  })
+  return out
+}
+
+export function snapRenderPrev(s: GameState): void {
+  s.p.renderPrevX = s.p.x
+  s.p.renderPrevY = s.p.y
+  s.prevCamX = s.cam.x
+  s.prevCamY = s.cam.y
+}
+
 export function stepGame(
   s: GameState,
   inp: InputState,
@@ -81,6 +132,24 @@ export function stepGame(
   const p = s.p,
     lv = s.level,
     map = lv.map
+
+  const mods = cb.getMods()
+  const runMax = mods.includes("quickfeet") ? MAX_RUN_SPEED * 1.15 : MAX_RUN_SPEED
+  const magnetR = mods.includes("lodestone") ? MAGNET_RADIUS * 1.6 : MAGNET_RADIUS
+
+  // Snapshot pre-tick state so the renderer can lerp between this and the
+  // post-tick state. Teleports below re-snap to avoid a smear across the cut.
+  p.renderPrevX = p.x
+  p.renderPrevY = p.y
+  s.prevCamX = s.cam.x
+  s.prevCamY = s.cam.y
+
+  // Hit-stop: brief impact pause on slash hit. Snapshot already happened so
+  // render lerps prev=curr (static frame) until the freeze ends.
+  if (s.hitStop > 0) {
+    s.hitStop--
+    return
+  }
 
   // ---- horizontal direction intent ----
   let dir = 0
@@ -118,8 +187,8 @@ export function stepGame(
     } else {
       p.vx += dir * MOVE_ACCELERATION
       if (dir === 0) p.vx *= MOVE_FRICTION
-      const overspeed = Math.abs(p.vx) > MAX_RUN_SPEED && (dir === 0 || Math.sign(p.vx) !== dir)
-      if (!overspeed) p.vx = Math.max(-MAX_RUN_SPEED, Math.min(MAX_RUN_SPEED, p.vx))
+      const overspeed = Math.abs(p.vx) > runMax && (dir === 0 || Math.sign(p.vx) !== dir)
+      if (!overspeed) p.vx = Math.max(-runMax, Math.min(runMax, p.vx))
     }
   }
 
@@ -159,7 +228,7 @@ export function stepGame(
     } else if (p.wallDir !== 0 || p.wallLatched) {
       const wd = p.wallDir !== 0 ? p.wallDir : p.facing > 0 ? 1 : -1
       p.vy = JUMP_VELOCITY * 0.94
-      p.vx = -wd * MAX_RUN_SPEED * 1.15
+      p.vx = -wd * runMax * 1.15
       p.jumpsLeft = 1
       p.airDashUsed = false // wall jump refreshes air abilities
       p.aimGlideUsed = false
@@ -422,7 +491,52 @@ export function stepGame(
   if (p.sliding) p.squash = 0.55 // visual: stay flat during slide
   p.squash += (1 - p.squash) * 0.18
 
-  // ---- collectibles + portals ----
+  // ---- collectibles (radius magnet) + portals (AABB) ----
+  {
+    const cxp = p.x + PLAYER_WIDTH / 2
+    const cyp = p.y + PLAYER_HEIGHT / 2
+    const radSq = magnetR * magnetR
+    const r = magnetR + TILE_SIZE
+    const left = Math.floor((p.x - r) / TILE_SIZE)
+    const right = Math.floor((p.x + PLAYER_WIDTH + r) / TILE_SIZE)
+    const top = Math.floor((p.y - r) / TILE_SIZE)
+    const bottom = Math.floor((p.y + PLAYER_HEIGHT + r) / TILE_SIZE)
+    for (let ty = top; ty <= bottom; ty++)
+      for (let tx = left; tx <= right; tx++) {
+        const c = map[ty]?.[tx]
+        if (c !== "c" && c !== "C") continue
+        const key = s.current + ":" + tx + "," + ty
+        if (s.collected.has(key)) continue
+        const stx = tx * TILE_SIZE + TILE_SIZE / 2
+        const sty = ty * TILE_SIZE + TILE_SIZE / 2
+        const dx = stx - cxp
+        const dy = sty - cyp
+        if (dx * dx + dy * dy > radSq) continue
+        s.collected.add(key)
+        const big = c === "C"
+        // Streak from star toward player so the magnet pull reads visually.
+        const trail = big ? 14 : 6
+        for (let i = 0; i < trail; i++) {
+          const t = i / trail
+          s.particles.push({
+            x: stx + (cxp - stx) * t,
+            y: sty + (cyp - sty) * t,
+            vx: (cxp - stx) * 0.04,
+            vy: (cyp - sty) * 0.04,
+            life: 16,
+            max: 16,
+            color: ch.accent,
+            size: 1.5 + Math.random() * 1.5,
+            g: 0,
+          })
+        }
+        addParticles(s, stx, sty, big ? 30 : 10, ch.accent, big ? 3 : 1.5)
+        cb.addMaterials(big ? 5 : 1)
+        playSnd(big ? "big_collect" : "collect")
+        if (big) cb.grantAch("a8")
+        if (cb.getMaterials() >= 5) cb.grantAch("a6")
+      }
+  }
   {
     const left = Math.floor(p.x / TILE_SIZE),
       right = Math.floor((p.x + PLAYER_WIDTH - 1) / TILE_SIZE)
@@ -431,23 +545,9 @@ export function stepGame(
     for (let ty = top; ty <= bottom; ty++)
       for (let tx = left; tx <= right; tx++) {
         const c = map[ty]?.[tx]
-        const key = tx + "," + ty
-        if ((c === "c" || c === "C") && !s.collected.has(key)) {
-          s.collected.add(key)
-          const big = c === "C"
-          addParticles(
-            s,
-            tx * TILE_SIZE + TILE_SIZE / 2,
-            ty * TILE_SIZE + TILE_SIZE / 2,
-            big ? 30 : 10,
-            ch.accent,
-            big ? 3 : 1.5,
-          )
-          cb.addMaterials(big ? 5 : 1)
-          cb.grantXP(big ? 80 : 15, big ? "rare cache" : "material")
-          playSnd(big ? "big_collect" : "collect")
-          if (big) cb.grantAch("a8")
-          if (cb.getMaterials() >= 5) cb.grantAch("a6")
+        if (c === "n" && inp.interactEdge) {
+          inp.interactEdge = false
+          cb.openDialog("elder")
         }
         if (c === "p" && inp.interactEdge) {
           inp.interactEdge = false
@@ -455,7 +555,13 @@ export function stepGame(
         }
         if (c === "r" && inp.interactEdge) {
           inp.interactEdge = false
-          if (s.current === "delve") cb.transitionToOver()
+          if (s.current === "delve") {
+            if (s.delveCleared) cb.transitionToOver()
+            else {
+              const left = s.dl.enemySpawns.length - s.defeatedEnemies.size
+              cb.notify(`Portal sealed — ${left} ${left === 1 ? "guardian" : "guardians"} remain`, "xp")
+            }
+          }
         }
       }
   }
@@ -471,6 +577,107 @@ export function stepGame(
 
   inp.jumpEdge = false
   inp.dashEdge = false
+
+  // ---- combat: enemies, sword slash, player damage ----
+  if (p.damageIframes > 0) p.damageIframes--
+  if (p.slashFrames > 0) p.slashFrames--
+  if (p.slashCool > 0) p.slashCool--
+
+  const pCx = p.x + PLAYER_WIDTH / 2
+  const pCy = p.y + PLAYER_HEIGHT / 2
+  const pHalfW = PLAYER_WIDTH / 2 + SLASH_REACH
+  const pHalfH = PLAYER_HEIGHT / 2 + SLASH_REACH
+
+  for (const e of s.enemies) {
+    if (!e.alive) continue
+    if (e.iframes > 0) {
+      e.iframes--
+      e.x += e.vx
+      e.y += e.vy
+      e.vx *= 0.82
+      e.vy *= 0.82
+    } else {
+      // Chase: float in a straight line toward the player. Ghosts ignore
+      // terrain by design — they pass through walls.
+      const dxe = pCx - (e.x + ENEMY_WIDTH / 2)
+      const dye = pCy - (e.y + ENEMY_HEIGHT / 2)
+      const dlen = Math.hypot(dxe, dye) || 1
+      e.vx = (dxe / dlen) * ENEMY_CHASE_SPEED
+      e.vy = (dye / dlen) * ENEMY_CHASE_SPEED
+      e.x += e.vx
+      e.y += e.vy
+      e.facing = dxe > 0 ? 1 : -1
+    }
+    e.bob += 0.07
+
+    const eCx = e.x + ENEMY_WIDTH / 2
+    const eCy = e.y + ENEMY_HEIGHT / 2
+    const overlapX = Math.abs(eCx - pCx) < pHalfW + ENEMY_WIDTH / 2
+    const overlapY = Math.abs(eCy - pCy) < pHalfH + ENEMY_HEIGHT / 2
+    if (!overlapX || !overlapY) continue
+
+    // Sword auto-slashes on overlap. Roll i-frames don't gate this — rolling
+    // through is the canonical safe attack (no damage taken + slash lands).
+    if (cb.hasSword() && p.slashCool <= 0) {
+      p.slashFrames = SLASH_FRAMES
+      p.slashCool = SLASH_COOLDOWN
+      p.facing = eCx > pCx ? 1 : -1
+      e.hp -= SLASH_DAMAGE
+      e.iframes = ENEMY_HIT_IFRAMES
+      e.vx = (eCx > pCx ? 1 : -1) * ENEMY_KNOCKBACK
+      s.hitStop = Math.max(s.hitStop, e.hp <= 0 ? 5 : 3)
+      s.cam.shake = Math.max(s.cam.shake, 2.5)
+      addParticles(s, eCx, eCy, 10, ch.accent, 1.6)
+      playSnd("dash")
+      if (e.hp <= 0) {
+        e.alive = false
+        s.defeatedEnemies.add(e.spawnIndex)
+        addParticles(s, eCx, eCy, 24, "#c08aff", 2.2)
+        cb.addMaterials(ENEMY_KILL_MATERIALS)
+        cb.grantXP(ENEMY_KILL_XP, "slain")
+        playSnd("big_collect")
+        if (
+          s.current === "delve" &&
+          !s.delveCleared &&
+          s.defeatedEnemies.size >= s.dl.enemySpawns.length
+        ) {
+          s.delveCleared = true
+          cb.notify("Delve cleared — portal unlocked", "discovery")
+          playSnd("portal")
+          cb.onDelveClear()
+        }
+      }
+    }
+
+    // Player takes damage if not already invulnerable. Roll iframes also
+    // grant immunity so the sword/roll combo is the intended kill cycle.
+    if (e.alive && p.damageIframes <= 0 && p.iframes <= 0) {
+      p.hp = Math.max(0, p.hp - 1)
+      p.damageIframes = DAMAGE_IFRAMES
+      p.vx = (pCx > eCx ? 1 : -1) * DAMAGE_KNOCKBACK_VX
+      p.vy = DAMAGE_KNOCKBACK_VY
+      p.wallLatched = false
+      p.sliding = false
+      s.cam.shake = Math.max(s.cam.shake, 6)
+      addParticles(s, pCx, pCy, 14, "#ff5060", 1.8)
+      playSnd("land")
+      cb.setHp(p.hp)
+      if (p.hp <= 0 && !p.dead) {
+        p.dead = true
+        cb.onDeath()
+        p.x = lv.spawn.x
+        p.y = lv.spawn.y
+        p.vx = 0
+        p.vy = 0
+        p.hp = p.maxHp
+        p.damageIframes = DAMAGE_IFRAMES * 2
+        p.dead = false
+        cb.setHp(p.hp)
+        snapRenderPrev(s)
+      }
+    }
+  }
+  s.enemies = s.enemies.filter((e) => e.alive)
 
   // ---- camera ----
   const camTargetX = p.x + PLAYER_WIDTH / 2 - 880 / 2
@@ -505,6 +712,7 @@ export function stepGame(
     p.y = lv.spawn.y
     p.vx = 0
     p.vy = 0
+    snapRenderPrev(s)
   }
 }
 
@@ -515,6 +723,8 @@ export function makeInitialState(
   y: number,
   current: SceneId,
   collected: Set<string>,
+  defeated: ReadonlySet<number> = new Set<number>(),
+  delveCleared = false,
 ): GameState {
   const lv = current === "delve" ? dl : ow
   const st: GameState = {
@@ -523,6 +733,8 @@ export function makeInitialState(
     current,
     level: lv,
     cam: { x: 0, y: 0, shake: 0 },
+    prevCamX: 0,
+    prevCamY: 0,
     p: {
       x,
       y,
@@ -542,6 +754,8 @@ export function makeInitialState(
       squash: 1,
       prevY: y,
       peakFall: 0,
+      renderPrevX: x,
+      renderPrevY: y,
       // Warframe-style state
       airDashUsed: false,
       aimGlideUsed: false,
@@ -550,7 +764,17 @@ export function makeInitialState(
       sliding: false,
       slideFrames: 0,
       iframes: 0,
+      hp: PLAYER_MAX_HP,
+      maxHp: PLAYER_MAX_HP,
+      damageIframes: 0,
+      slashFrames: 0,
+      slashCool: 0,
+      dead: false,
     },
+    enemies: current === "delve" ? spawnEnemiesFrom(dl.enemySpawns, defeated) : [],
+    defeatedEnemies: new Set<number>(defeated),
+    delveCleared,
+    hitStop: 0,
     collected,
     particles: [],
     bgPart: [],

@@ -25,6 +25,14 @@ export interface ProposedMod {
   d: string
 }
 
+// Craftable mods. Effects are applied in physics.ts based on `id`.
+export interface Mod {
+  id: string
+  name: string
+  desc: string
+  cost: number // materials required to craft
+}
+
 // Color palettes for the character creator. Plain hex strings; documented
 // as a named type so call sites read more clearly.
 export type ColorHex = string

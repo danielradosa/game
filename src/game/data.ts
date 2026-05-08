@@ -1,5 +1,5 @@
 import { TILE_SIZE } from "@/game/constants"
-import type { Achievement, Palette, ProposedMod, Zone } from "@/game/types/data"
+import type { Achievement, Mod, Palette, ProposedMod, Zone } from "@/game/types/data"
 
 // `as const satisfies readonly Zone[]` is the trick: `as const` preserves the
 // literal types ("z1", "Sunrise Clearing", etc.) so we can derive ZoneId
@@ -127,8 +127,24 @@ export const ACCENTS = [
 export const PROPOSED_MODS = [
   { n: "Phase Dash", d: "Pass through enemies" },
   { n: "Updraft", d: "Jumps create wind gusts" },
-  { n: "Lodestone", d: "Auto-collect nearby drops" },
-  { n: "Quickfeet", d: "+15% movement speed" },
   { n: "Soft Land", d: "No fall stagger" },
   { n: "Echo", d: "Dash leaves a damaging trail" },
 ] as const satisfies readonly ProposedMod[]
+
+// Active mods. Each id is special-cased in physics.ts where its effect lives.
+export const MODS = [
+  {
+    id: "quickfeet",
+    name: "Quickfeet",
+    desc: "+15% movement speed",
+    cost: 5,
+  },
+  {
+    id: "lodestone",
+    name: "Lodestone",
+    desc: "Greatly extends pickup magnet radius",
+    cost: 5,
+  },
+] as const satisfies readonly Mod[]
+
+export type ModId = (typeof MODS)[number]["id"]

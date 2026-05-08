@@ -6,6 +6,8 @@ import type { Character, SceneId } from "@/game/types/physics"
 
 // HUD state mirrored into a save. Defined here (rather than App.tsx) because
 // save.ts is the consumer that needs the contract.
+export type QuestStage = "intro" | "active" | "cleared" | "done"
+
 export interface HudState {
   level: number
   xp: number
@@ -13,6 +15,9 @@ export interface HudState {
   discovered: string[] // ZoneId values (kept loose — see data.ts)
   achievements: string[] // AchievementId values (loose for the same reason)
   inDelve: boolean
+  hasSword: boolean
+  questStage: QuestStage
+  mods: string[] // crafted mod ids (see data.ts MODS)
 }
 
 // What gets serialized into one save slot.
@@ -24,7 +29,9 @@ export interface SaveData {
     y: number
     scene: SceneId
   }
-  collected: string[] // "tx,ty" keys; rehydrated into a Set on load
+  collected: string[] // "<scene>:<tx>,<ty>" keys; rehydrated into a Set on load
+  defeatedEnemies: number[] // delve spawn indices defeated this run
+  delveCleared: boolean
 }
 
 // One row in the load-menu list. Cheap to enumerate.
