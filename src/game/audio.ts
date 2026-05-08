@@ -1,9 +1,4 @@
-import type {
-  OscType,
-  SoundMap,
-  SoundName,
-  VolumeMap,
-} from "./types/audio";
+import type { OscType, SoundMap, SoundName, VolumeMap } from "./types/audio";
 
 // Replace any procedural sound with a real file:
 // SOUNDS.jump = new Audio('/sfx/jump.mp3');
@@ -70,14 +65,7 @@ function ensureAC(): AudioContext | null {
   return _ac;
 }
 
-function sweep(
-  ac: AudioContext,
-  f1: number,
-  f2: number,
-  dur: number,
-  type: OscType,
-  vol: number,
-) {
+function sweep(ac: AudioContext, f1: number, f2: number, dur: number, type: OscType, vol: number) {
   const oscillator = ac.createOscillator();
   const gain = ac.createGain();
 
@@ -85,17 +73,11 @@ function sweep(
 
   oscillator.frequency.setValueAtTime(f1, ac.currentTime);
 
-  oscillator.frequency.exponentialRampToValueAtTime(
-    Math.max(0.001, f2),
-    ac.currentTime + dur,
-  );
+  oscillator.frequency.exponentialRampToValueAtTime(Math.max(0.001, f2), ac.currentTime + dur);
 
   gain.gain.setValueAtTime(vol, ac.currentTime);
 
-  gain.gain.exponentialRampToValueAtTime(
-    0.0001,
-    ac.currentTime + dur,
-  );
+  gain.gain.exponentialRampToValueAtTime(0.0001, ac.currentTime + dur);
 
   oscillator.connect(gain);
   gain.connect(ac.destination);
@@ -104,22 +86,10 @@ function sweep(
   oscillator.stop(ac.currentTime + dur);
 }
 
-function noise(
-  ac: AudioContext,
-  dur: number,
-  vol: number,
-  lpf = 1500,
-) {
-  const length = Math.max(
-    1,
-    Math.floor(ac.sampleRate * dur),
-  );
+function noise(ac: AudioContext, dur: number, vol: number, lpf = 1500) {
+  const length = Math.max(1, Math.floor(ac.sampleRate * dur));
 
-  const buffer = ac.createBuffer(
-    1,
-    length,
-    ac.sampleRate,
-  );
+  const buffer = ac.createBuffer(1, length, ac.sampleRate);
 
   const data = buffer.getChannelData(0);
 
@@ -138,10 +108,7 @@ function noise(
 
   gain.gain.setValueAtTime(vol, ac.currentTime);
 
-  gain.gain.exponentialRampToValueAtTime(
-    0.0001,
-    ac.currentTime + dur,
-  );
+  gain.gain.exponentialRampToValueAtTime(0.0001, ac.currentTime + dur);
 
   source.connect(filter);
   filter.connect(gain);
@@ -150,36 +117,20 @@ function noise(
   source.start();
 }
 
-function arp(
-  ac: AudioContext,
-  freqs: number[],
-  step: number,
-  type: OscType,
-  vol: number,
-) {
+function arp(ac: AudioContext, freqs: number[], step: number, type: OscType, vol: number) {
   freqs.forEach((freq, index) => {
-    setTimeout(() => {
-      sweep(ac, freq, freq, step, type, vol);
-    }, index * step * 800);
+    setTimeout(
+      () => {
+        sweep(ac, freq, freq, step, type, vol);
+      },
+      index * step * 800,
+    );
   });
 }
 
-function chord(
-  ac: AudioContext,
-  freqs: number[],
-  dur: number,
-  type: OscType,
-  vol: number,
-) {
+function chord(ac: AudioContext, freqs: number[], dur: number, type: OscType, vol: number) {
   freqs.forEach((freq) => {
-    sweep(
-      ac,
-      freq,
-      freq,
-      dur,
-      type,
-      vol / freqs.length,
-    );
+    sweep(ac, freq, freq, dur, type, vol / freqs.length);
   });
 }
 
@@ -231,43 +182,19 @@ export function playSnd(name: SoundName) {
       break;
 
     case "big_collect":
-      arp(
-        ac,
-        [523, 659, 784, 1047],
-        0.05,
-        "sine",
-        volume,
-      );
+      arp(ac, [523, 659, 784, 1047], 0.05, "sine", volume);
       break;
 
     case "level_up":
-      arp(
-        ac,
-        [523, 659, 784, 1047],
-        0.06,
-        "triangle",
-        volume,
-      );
+      arp(ac, [523, 659, 784, 1047], 0.06, "triangle", volume);
       break;
 
     case "discover":
-      chord(
-        ac,
-        [392, 494, 587],
-        0.4,
-        "sine",
-        volume,
-      );
+      chord(ac, [392, 494, 587], 0.4, "sine", volume);
       break;
 
     case "achievement":
-      arp(
-        ac,
-        [659, 784, 988, 1318],
-        0.07,
-        "triangle",
-        volume,
-      );
+      arp(ac, [659, 784, 988, 1318], 0.07, "triangle", volume);
       break;
 
     case "portal":

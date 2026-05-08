@@ -1,10 +1,16 @@
-import { T, VW, VH, PW, PH } from "./constants";
+import {
+  TILE_SIZE,
+  VIEWPORT_WIDTH,
+  VIEWPORT_HEIGHT,
+  PLAYER_WIDTH,
+  PLAYER_HEIGHT,
+} from "./constants";
 import { ASSET_SIZES, SPRITES, isReady, tryDrawSprite } from "./sprites";
 
 export function draw(ctx, s, ch) {
   const lv = s.level;
   ctx.save();
-  ctx.clearRect(0, 0, VW, VH);
+  ctx.clearRect(0, 0, VIEWPORT_WIDTH, VIEWPORT_HEIGHT);
   drawSky(ctx, s);
   const sx = (Math.random() - 0.5) * s.cam.shake;
   const sy = (Math.random() - 0.5) * s.cam.shake;
@@ -30,21 +36,28 @@ export function draw(ctx, s, ch) {
   ctx.globalAlpha = 1;
   drawPlayer(ctx, s, ch);
   ctx.restore();
-  const vg = ctx.createRadialGradient(VW / 2, VH / 2, VH * 0.4, VW / 2, VH / 2, VH * 0.85);
+  const vg = ctx.createRadialGradient(
+    VIEWPORT_WIDTH / 2,
+    VIEWPORT_HEIGHT / 2,
+    VIEWPORT_HEIGHT * 0.4,
+    VIEWPORT_WIDTH / 2,
+    VIEWPORT_HEIGHT / 2,
+    VIEWPORT_HEIGHT * 0.85,
+  );
   vg.addColorStop(0, "rgba(0,0,0,0)");
   vg.addColorStop(1, lv.theme === "delve" ? "rgba(20,5,40,0.55)" : "rgba(20,15,40,0.35)");
   ctx.fillStyle = vg;
-  ctx.fillRect(0, 0, VW, VH);
+  ctx.fillRect(0, 0, VIEWPORT_WIDTH, VIEWPORT_HEIGHT);
 }
 
 export function drawPaused(ctx) {
   ctx.fillStyle = "rgba(10,5,20,0.6)";
-  ctx.fillRect(0, 0, VW, VH);
+  ctx.fillRect(0, 0, VIEWPORT_WIDTH, VIEWPORT_HEIGHT);
 }
 
 function drawSky(ctx, s) {
   const lv = s.level;
-  const grad = ctx.createLinearGradient(0, 0, 0, VH);
+  const grad = ctx.createLinearGradient(0, 0, 0, VIEWPORT_HEIGHT);
   if (lv.theme === "delve") {
     grad.addColorStop(0, "#1a0a2a");
     grad.addColorStop(0.5, "#2a1040");
@@ -56,10 +69,10 @@ function drawSky(ctx, s) {
     grad.addColorStop(1, "#3a4078");
   }
   ctx.fillStyle = grad;
-  ctx.fillRect(0, 0, VW, VH);
+  ctx.fillRect(0, 0, VIEWPORT_WIDTH, VIEWPORT_HEIGHT);
   if (lv.theme === "over") {
-    const sunY = VH * 0.32 - s.cam.y * 0.05;
-    const sunX = VW * 0.7 - s.cam.x * 0.05;
+    const sunY = VIEWPORT_HEIGHT * 0.32 - s.cam.y * 0.05;
+    const sunX = VIEWPORT_WIDTH * 0.7 - s.cam.x * 0.05;
     const sg = ctx.createRadialGradient(sunX, sunY, 5, sunX, sunY, 80);
     sg.addColorStop(0, "rgba(255,240,200,1)");
     sg.addColorStop(0.4, "rgba(255,200,150,0.7)");
@@ -83,17 +96,17 @@ function drawParallax(ctx, s) {
     }
     return;
   }
-  const lvW = lv.W * T;
+  const lvW = lv.W * TILE_SIZE;
   const range = (offX, baseY, color, amp, freq) => {
     ctx.fillStyle = color;
     ctx.beginPath();
-    ctx.moveTo(0, lv.H * T);
+    ctx.moveTo(0, lv.H * TILE_SIZE);
     for (let x = 0; x <= lvW; x += 20) {
       const px = x + offX;
       const y = baseY + Math.sin(px * freq) * amp + Math.cos(px * freq * 2.3) * amp * 0.5;
       ctx.lineTo(x, y);
     }
-    ctx.lineTo(lvW, lv.H * T);
+    ctx.lineTo(lvW, lv.H * TILE_SIZE);
     ctx.closePath();
     ctx.fill();
   };
@@ -105,15 +118,15 @@ function drawParallax(ctx, s) {
 function drawTiles(ctx, s) {
   const lv = s.level,
     map = lv.map;
-  const sX = Math.max(0, Math.floor(s.cam.x / T) - 1);
-  const eX = Math.min(lv.W - 1, Math.ceil((s.cam.x + VW) / T) + 1);
-  const sY = Math.max(0, Math.floor(s.cam.y / T) - 1);
-  const eY = Math.min(lv.H - 1, Math.ceil((s.cam.y + VH) / T) + 1);
+  const sX = Math.max(0, Math.floor(s.cam.x / TILE_SIZE) - 1);
+  const eX = Math.min(lv.W - 1, Math.ceil((s.cam.x + VIEWPORT_WIDTH) / TILE_SIZE) + 1);
+  const sY = Math.max(0, Math.floor(s.cam.y / TILE_SIZE) - 1);
+  const eY = Math.min(lv.H - 1, Math.ceil((s.cam.y + VIEWPORT_HEIGHT) / TILE_SIZE) + 1);
   for (let ty = sY; ty <= eY; ty++)
     for (let tx = sX; tx <= eX; tx++) {
       const c = map[ty][tx],
-        x = tx * T,
-        y = ty * T;
+        x = tx * TILE_SIZE,
+        y = ty * TILE_SIZE;
       if (c === "#") drawSolid(ctx, x, y, map, tx, ty, lv.theme);
       else if (c === "=") drawPlatform(ctx, x, y, lv.theme);
     }
@@ -130,33 +143,33 @@ function drawSolid(ctx, x, y, map, tx, ty, theme) {
   }
   if (theme === "delve") {
     ctx.fillStyle = "#3a2a55";
-    ctx.fillRect(x, y, T, T);
+    ctx.fillRect(x, y, TILE_SIZE, TILE_SIZE);
     ctx.fillStyle = "#2a1a40";
-    ctx.fillRect(x, y, 2, T);
-    ctx.fillRect(x, y + T - 2, T, 2);
+    ctx.fillRect(x, y, 2, TILE_SIZE);
+    ctx.fillRect(x, y + TILE_SIZE - 2, TILE_SIZE, 2);
     if (isTop) {
       ctx.fillStyle = "#5a3a8a";
-      ctx.fillRect(x, y, T, 4);
+      ctx.fillRect(x, y, TILE_SIZE, 4);
     }
     if ((tx * 7 + ty * 13) % 11 === 0) {
       ctx.fillStyle = "rgba(200,150,255,0.6)";
       ctx.fillRect(x + 6 + (tx % 3) * 8, y + 12 + (ty % 3) * 6, 2, 2);
     }
   } else {
-    const earth = ctx.createLinearGradient(x, y, x, y + T);
+    const earth = ctx.createLinearGradient(x, y, x, y + TILE_SIZE);
     earth.addColorStop(0, "#6b4a32");
     earth.addColorStop(1, "#3a2818");
     ctx.fillStyle = earth;
-    ctx.fillRect(x, y, T, T);
+    ctx.fillRect(x, y, TILE_SIZE, TILE_SIZE);
     ctx.fillStyle = "rgba(0,0,0,0.15)";
-    ctx.fillRect(x + ((tx * 7) % T), y + 8 + ((ty * 5) % (T - 12)), 3, 3);
-    ctx.fillRect(x + ((tx * 13 + 5) % T), y + 16 + ((ty * 11) % (T - 20)), 2, 2);
+    ctx.fillRect(x + ((tx * 7) % TILE_SIZE), y + 8 + ((ty * 5) % (TILE_SIZE - 12)), 3, 3);
+    ctx.fillRect(x + ((tx * 13 + 5) % TILE_SIZE), y + 16 + ((ty * 11) % (TILE_SIZE - 20)), 2, 2);
     if (isTop) {
       const grass = ctx.createLinearGradient(x, y, x, y + 10);
       grass.addColorStop(0, "#a8d05a");
       grass.addColorStop(1, "#5a8030");
       ctx.fillStyle = grass;
-      ctx.fillRect(x, y, T, 8);
+      ctx.fillRect(x, y, TILE_SIZE, 8);
       ctx.fillStyle = "#c4e070";
       for (let i = 0; i < 3; i++) ctx.fillRect(x + 4 + i * 12 + ((tx * 3) % 4), y + 2, 2, 5);
     }
@@ -171,22 +184,22 @@ function drawPlatform(ctx, x, y, theme) {
   }
   if (theme === "delve") {
     ctx.fillStyle = "#5a3a8a";
-    ctx.fillRect(x, y, T, 6);
+    ctx.fillRect(x, y, TILE_SIZE, 6);
     ctx.fillStyle = "#3a2a55";
-    ctx.fillRect(x, y + 6, T, 4);
+    ctx.fillRect(x, y + 6, TILE_SIZE, 4);
     ctx.fillStyle = "rgba(200,150,255,0.5)";
-    ctx.fillRect(x, y, T, 1);
+    ctx.fillRect(x, y, TILE_SIZE, 1);
   } else {
     const g = ctx.createLinearGradient(x, y, x, y + 12);
     g.addColorStop(0, "#9a6f48");
     g.addColorStop(0.5, "#7a4f30");
     g.addColorStop(1, "#4a2818");
     ctx.fillStyle = g;
-    ctx.fillRect(x, y, T, 12);
+    ctx.fillRect(x, y, TILE_SIZE, 12);
     ctx.fillStyle = "rgba(0,0,0,0.2)";
-    ctx.fillRect(x, y + 11, T, 1);
+    ctx.fillRect(x, y + 11, TILE_SIZE, 1);
     ctx.fillStyle = "rgba(255,220,170,0.3)";
-    ctx.fillRect(x + 2, y + 1, T - 4, 1);
+    ctx.fillRect(x + 2, y + 1, TILE_SIZE - 4, 1);
   }
 }
 
@@ -196,13 +209,13 @@ function drawEntities(ctx, s) {
   for (let ty = 0; ty < lv.H; ty++)
     for (let tx = 0; tx < lv.W; tx++) {
       const c = map[ty][tx],
-        x = tx * T,
-        y = ty * T,
+        x = tx * TILE_SIZE,
+        y = ty * TILE_SIZE,
         key = tx + "," + ty;
       if (c === "c" && !s.collected.has(key)) {
         const bob = Math.sin(s.time * 0.005 + tx) * 4;
-        const cx = x + T / 2,
-          cy = y + T / 2 + bob;
+        const cx = x + TILE_SIZE / 2,
+          cy = y + TILE_SIZE / 2 + bob;
         if (tryDrawSprite(ctx, "collectible", cx, cy)) continue;
         ctx.save();
         ctx.translate(cx, cy);
@@ -230,8 +243,8 @@ function drawEntities(ctx, s) {
         ctx.restore();
       } else if (c === "C" && !s.collected.has(key)) {
         const bob = Math.sin(s.time * 0.004) * 3;
-        const cx = x + T / 2,
-          cy = y + T / 2 + bob;
+        const cx = x + TILE_SIZE / 2,
+          cy = y + TILE_SIZE / 2 + bob;
         if (tryDrawSprite(ctx, "cache", cx, cy)) continue;
         ctx.save();
         ctx.translate(cx, cy);
@@ -258,10 +271,10 @@ function drawEntities(ctx, s) {
         ctx.fill();
         ctx.restore();
       } else if (c === "p") {
-        const cx = x + T / 2,
-          by = y + T;
+        const cx = x + TILE_SIZE / 2,
+          by = y + TILE_SIZE;
         if (!tryDrawSprite(ctx, "portal_delve", cx, by)) {
-          const cy = y + T / 2;
+          const cy = y + TILE_SIZE / 2;
           ctx.save();
           for (let i = 3; i >= 0; i--) {
             const r = 20 + i * 6 + Math.sin(s.time * 0.005 + i) * 3;
@@ -283,10 +296,10 @@ function drawEntities(ctx, s) {
         ctx.textAlign = "center";
         ctx.fillText("[E] Enter Delve", cx, y - 8);
       } else if (c === "r") {
-        const cx = x + T / 2,
-          by = y + T;
+        const cx = x + TILE_SIZE / 2,
+          by = y + TILE_SIZE;
         if (!tryDrawSprite(ctx, "portal_return", cx, by)) {
-          const cy = y + T / 2;
+          const cy = y + TILE_SIZE / 2;
           ctx.save();
           for (let i = 3; i >= 0; i--) {
             const r = 18 + i * 5 + Math.sin(s.time * 0.005 + i) * 2;
@@ -306,8 +319,8 @@ function drawEntities(ctx, s) {
         ctx.textAlign = "center";
         ctx.fillText("[E] Surface", cx, y - 8);
       } else if (c === "n") {
-        const cx = x + T / 2,
-          by = y + T - 4;
+        const cx = x + TILE_SIZE / 2,
+          by = y + TILE_SIZE - 4;
         if (tryDrawSprite(ctx, "npc", cx, by)) continue;
         ctx.fillStyle = "#3a2030";
         ctx.beginPath();
@@ -327,8 +340,8 @@ function drawEntities(ctx, s) {
 
 function drawPlayer(ctx, s, ch) {
   const p = s.p;
-  const cx = p.x + PW / 2,
-    by = p.y + PH;
+  const cx = p.x + PLAYER_WIDTH / 2,
+    by = p.y + PLAYER_HEIGHT;
   if (isReady(SPRITES.player)) {
     ctx.save();
     ctx.translate(Math.round(cx), Math.round(by));
@@ -339,8 +352,8 @@ function drawPlayer(ctx, s, ch) {
     return;
   }
   const sq = p.squash;
-  const bodyH = PH * sq,
-    bodyW = PW * (2 - sq);
+  const bodyH = PLAYER_HEIGHT * sq,
+    bodyW = PLAYER_WIDTH * (2 - sq);
   const moving = Math.abs(p.vx) > 0.5 && p.onGround;
   const swing = Math.sin(p.anim * 4) * (moving ? 1 : 0);
   const inAir = !p.onGround;

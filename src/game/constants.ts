@@ -1,21 +1,31 @@
-export const T = 36;
-export const VW = 880,
-  VH = 520;
-export const GRAV = 0.46;
-export const JV = -10.8,
-  DJV = -10.0;
-export const MA = 0.9,
-  MF = 0.82,
-  MR = 5.0;
-export const DV = 13.5,
-  DF = 10,
-  DC = 28;
-export const CY = 7,
-  JB = 6,
-  WS = 2.6,
-  FM = 13;
-export const JUMP_CUT = 0.5;
-export const PW = 22,
-  PH = 32;
-export const xpFor = (l: number) => Math.floor(80 + l * 28);
-export const DUST = "#cfaf87";
+export const TILE_SIZE = 36;
+
+export const VIEWPORT_WIDTH = 880;
+export const VIEWPORT_HEIGHT = 520;
+
+export const GRAVITY = 0.46;
+
+export const JUMP_VELOCITY = -10.8;
+export const DOUBLE_JUMP_VELOCITY = -10.0;
+
+export const MOVE_ACCELERATION = 0.9;
+export const MOVE_FRICTION = 0.82;
+export const MAX_RUN_SPEED = 5.0;
+
+export const DASH_VELOCITY = 13.5;
+export const DASH_FRAMES = 10;
+export const DASH_COOLDOWN = 28;
+
+export const COYOTE_FRAMES = 7;
+export const JUMP_BUFFER_FRAMES = 6;
+export const WALL_SLIDE_SPEED = 2.6;
+export const MAX_FALL_SPEED = 13;
+
+export const JUMP_CUT_MULTIPLIER = 0.5;
+
+export const PLAYER_WIDTH = 22;
+export const PLAYER_HEIGHT = 32;
+
+export const xpForLevel = (level: number) => Math.floor(80 + level * 28);
+
+export const DUST_COLOR = "#cfaf87";

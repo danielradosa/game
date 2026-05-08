@@ -1,4 +1,4 @@
-import { T } from "./constants";
+import { TILE_SIZE } from "./constants";
 
 export function buildOverworld() {
   const W = 110,
@@ -51,7 +51,14 @@ export function buildOverworld() {
   });
   m[g[6] - 1][6] = "n";
   m[g[105] - 1][105] = "p";
-  return { map: m, W, H, spawn: { x: 3 * T, y: (g[3] - 3) * T }, ground: g, theme: "over" };
+  return {
+    map: m,
+    W,
+    H,
+    spawn: { x: 3 * TILE_SIZE, y: (g[3] - 3) * TILE_SIZE },
+    ground: g,
+    theme: "over",
+  };
 }
 
 export function buildDelve() {
@@ -90,7 +97,7 @@ export function buildDelve() {
   ].forEach(([x, y]) => (m[y][x] = "c"));
   m[3][12] = "C";
   m[H - 2][2] = "r";
-  return { map: m, W, H, spawn: { x: 4 * T, y: (H - 3) * T }, theme: "delve" };
+  return { map: m, W, H, spawn: { x: 4 * TILE_SIZE, y: (H - 3) * TILE_SIZE }, theme: "delve" };
 }
 
 export const isSolid = (c) => c === "#";

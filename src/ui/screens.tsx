@@ -1,6 +1,6 @@
 import { useState } from "react";
-import { ZONES, ACHS, SKINS, HAIRS, SHIRTS, PANTS, ACCS, PROPOSED_MODS } from "../game/data";
-import { xpFor } from "../game/constants";
+import { ZONES, ACHIEVEMENTS, SKINS, HAIRS, SHIRTS, PANTS, ACCENTS, PROPOSED_MODS } from "../game/data";
+import { xpForLevel } from "../game/constants";
 import { playSnd } from "../game/audio";
 import CharacterPreview from "./CharacterPreview";
 
@@ -342,7 +342,7 @@ export function CharacterCreator({ character, setCharacter, onPlay, onBack }) {
             <Swatches
               label="Accent"
               value={character.accent}
-              options={ACCS}
+              options={ACCENTS}
               onChange={(v) => upd("accent", v)}
             />
           </div>
@@ -373,9 +373,9 @@ export function CharacterCreator({ character, setCharacter, onPlay, onBack }) {
 }
 
 export function InventoryPanel({ hud, character, onClose }) {
-  const xpPct = (hud.xp / xpFor(hud.level)) * 100;
-  const unlocked = ACHS.filter((a) => hud.achievements.includes(a.id));
-  const locked = ACHS.filter((a) => !hud.achievements.includes(a.id));
+  const xpPct = (hud.xp / xpForLevel(hud.level)) * 100;
+  const unlocked = ACHIEVEMENTS.filter((a) => hud.achievements.includes(a.id));
+  const locked = ACHIEVEMENTS.filter((a) => !hud.achievements.includes(a.id));
   return (
     <div className="absolute inset-0 bg-black/75 backdrop-blur-sm rounded-lg flex items-center justify-center p-4 overflow-auto">
       <div className="bg-stone-900 rounded-xl p-6 max-w-2xl w-full max-h-full overflow-auto">
@@ -398,7 +398,7 @@ export function InventoryPanel({ hud, character, onClose }) {
               />
             </div>
             <div className="text-xs text-stone-500 mt-1">
-              {hud.xp} / {xpFor(hud.level)} XP to next level
+              {hud.xp} / {xpForLevel(hud.level)} XP to next level
             </div>
           </div>
           <div className="bg-stone-800/60 rounded-lg p-4">
@@ -417,7 +417,7 @@ export function InventoryPanel({ hud, character, onClose }) {
               <div className="flex justify-between">
                 <span>Achievements</span>
                 <span className="font-semibold text-orange-200">
-                  {unlocked.length} / {ACHS.length}
+                  {unlocked.length} / {ACHIEVEMENTS.length}
                 </span>
               </div>
             </div>

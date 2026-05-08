@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from "react";
-import { T, VW, VH, xpFor } from "./game/constants";
-import { ZONES, ACHS, SKINS, HAIRS, SHIRTS, PANTS, ACCS } from "./game/data";
+import { TILE_SIZE, VIEWPORT_WIDTH, VIEWPORT_HEIGHT, xpForLevel } from "./game/constants";
+import { ZONES, ACHIEVEMENTS, SKINS, HAIRS, SHIRTS, PANTS, ACCENTS } from "./game/data";
 import { buildOverworld, buildDelve } from "./game/levels";
 import { stepGame, makeInitialState } from "./game/physics";
 import { draw, drawPaused } from "./game/render";
@@ -20,7 +20,7 @@ export default function App() {
     hairStyle: "med",
     shirt: SHIRTS[0],
     pants: PANTS[0],
-    accent: ACCS[0],
+    accent: ACCENTS[0],
   });
   const [hud, setHud] = useState({
     level: 1,
@@ -71,7 +71,7 @@ export default function App() {
   const grantAch = useCallback(
     (id) => {
       if (hudRef.current.achievements.includes(id)) return;
-      const a = ACHS.find((x) => x.id === id);
+      const a = ACHIEVEMENTS.find((x) => x.id === id);
       setHud((h) => ({ ...h, achievements: [...h.achievements, id] }));
       pushNotif("Achievement — " + a.name, "ach");
       playSnd("achievement");
@@ -85,8 +85,8 @@ export default function App() {
         let xp = h.xp + amt,
           lvl = h.level;
         const ups = [];
-        while (xp >= xpFor(lvl)) {
-          xp -= xpFor(lvl);
+        while (xp >= xpForLevel(lvl)) {
+          xp -= xpForLevel(lvl);
           lvl++;
           ups.push(lvl);
         }
@@ -134,8 +134,8 @@ export default function App() {
     const s = stateRef.current;
     s.current = "over";
     s.level = s.ow;
-    s.p.x = 100 * T;
-    s.p.y = (s.ow.ground[100] - 3) * T;
+    s.p.x = 100 * TILE_SIZE;
+    s.p.y = (s.ow.ground[100] - 3) * TILE_SIZE;
     s.p.vx = 0;
     s.p.vy = 0;
     s.p.dashFrames = 0;
@@ -329,14 +329,19 @@ export default function App() {
       />
     );
 
-  const xpPct = (hud.xp / xpFor(hud.level)) * 100;
+  const xpPct = (hud.xp / xpForLevel(hud.level)) * 100;
   return (
     <div
       className="w-full min-h-screen flex items-center justify-center p-4"
       style={{ background: "#0a0518" }}
     >
-      <div className="relative" style={{ width: VW, height: VH }}>
-        <canvas ref={canvasRef} width={VW} height={VH} className="block rounded-lg shadow-2xl" />
+      <div className="relative" style={{ width: VIEWPORT_WIDTH, height: VIEWPORT_HEIGHT }}>
+        <canvas
+          ref={canvasRef}
+          width={VIEWPORT_WIDTH}
+          height={VIEWPORT_HEIGHT}
+          className="block rounded-lg shadow-2xl"
+        />
         <div className="absolute top-3 left-3 flex items-center gap-3 pointer-events-none">
           <div className="bg-black/40 backdrop-blur rounded-lg px-3 py-2 text-white text-sm">
             <div className="flex items-center gap-2">
@@ -350,7 +355,7 @@ export default function App() {
               />
             </div>
             <div className="text-[10px] text-stone-400 mt-0.5">
-              {hud.xp} / {xpFor(hud.level)} XP
+              {hud.xp} / {xpForLevel(hud.level)} XP
             </div>
           </div>
           <div className="bg-black/40 backdrop-blur rounded-lg px-3 py-2 text-white text-sm">
