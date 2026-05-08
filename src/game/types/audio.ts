@@ -9,10 +9,10 @@ export type SoundName =
   | "discover"
   | "achievement"
   | "portal"
-  | "click";
+  | "click"
 
-export type SoundMap = Record<SoundName, HTMLAudioElement | null>;
+export type SoundMap = Record<SoundName, HTMLAudioElement | null>
 
-export type VolumeMap = Record<SoundName, number>;
+export type VolumeMap = Record<SoundName, number>
 
-export type OscType = OscillatorType;
+export type OscType = OscillatorType

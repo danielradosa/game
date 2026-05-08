@@ -1,11 +1,40 @@
-import { useState } from "react";
-import { ZONES, ACHIEVEMENTS, SKINS, HAIRS, SHIRTS, PANTS, ACCENTS, PROPOSED_MODS } from "../game/data";
-import { xpForLevel } from "../game/constants";
-import { playSnd } from "../game/audio";
-import CharacterPreview from "./CharacterPreview";
+import { useState, type Dispatch, type SetStateAction } from "react"
+import {
+  ZONES,
+  ACHIEVEMENTS,
+  SKINS,
+  HAIRS,
+  SHIRTS,
+  PANTS,
+  ACCENTS,
+  PROPOSED_MODS,
+} from "@/game/data"
+import { xpForLevel } from "@/game/constants"
+import { playSnd } from "@/game/audio"
+import CharacterPreview from "@/ui/CharacterPreview"
+import type { Character } from "@/game/types/physics"
+import type { HudState, SaveManifest } from "@/game/types/save"
 
-export function MainMenu({ manifest, muted, onContinue, onNew, onLoad, onAbout, onToggleMute }) {
-  const hasSaves = manifest.length > 0;
+interface MainMenuProps {
+  manifest: SaveManifest
+  muted: boolean
+  onContinue: () => void
+  onNew: () => void
+  onLoad: () => void
+  onAbout: () => void
+  onToggleMute: () => void
+}
+
+export function MainMenu({
+  manifest,
+  muted,
+  onContinue,
+  onNew,
+  onLoad,
+  onAbout,
+  onToggleMute,
+}: MainMenuProps) {
+  const hasSaves = manifest.length > 0
   return (
     <div
       className="w-full h-full min-h-screen flex items-center justify-center"
@@ -25,8 +54,8 @@ export function MainMenu({ manifest, muted, onContinue, onNew, onLoad, onAbout, 
           {hasSaves && (
             <button
               onClick={() => {
-                playSnd("click");
-                onContinue();
+                playSnd("click")
+                onContinue()
               }}
               className="bg-orange-300 hover:bg-orange-200 text-stone-900 font-semibold px-12 py-3 rounded-full text-lg transition"
             >
@@ -35,8 +64,8 @@ export function MainMenu({ manifest, muted, onContinue, onNew, onLoad, onAbout, 
           )}
           <button
             onClick={() => {
-              playSnd("click");
-              onNew();
+              playSnd("click")
+              onNew()
             }}
             className={
               (hasSaves
@@ -50,8 +79,8 @@ export function MainMenu({ manifest, muted, onContinue, onNew, onLoad, onAbout, 
           {hasSaves && (
             <button
               onClick={() => {
-                playSnd("click");
-                onLoad();
+                playSnd("click")
+                onLoad()
               }}
               className="text-purple-200 hover:text-white text-sm"
             >
@@ -60,8 +89,8 @@ export function MainMenu({ manifest, muted, onContinue, onNew, onLoad, onAbout, 
           )}
           <button
             onClick={() => {
-              playSnd("click");
-              onAbout();
+              playSnd("click")
+              onAbout()
             }}
             className="text-purple-200 hover:text-white text-sm"
           >
@@ -73,10 +102,14 @@ export function MainMenu({ manifest, muted, onContinue, onNew, onLoad, onAbout, 
         </div>
       </div>
     </div>
-  );
+  )
 }
 
-export function About({ onBack }) {
+interface AboutProps {
+  onBack: () => void
+}
+
+export function About({ onBack }: AboutProps) {
   return (
     <div
       className="w-full min-h-screen flex items-center justify-center p-8"
@@ -112,8 +145,8 @@ export function About({ onBack }) {
         </div>
         <button
           onClick={() => {
-            playSnd("click");
-            onBack();
+            playSnd("click")
+            onBack()
           }}
           className="text-orange-200 hover:text-white"
         >
@@ -121,27 +154,34 @@ export function About({ onBack }) {
         </button>
       </div>
     </div>
-  );
+  )
 }
 
-export function LoadMenu({ manifest, onLoad, onDelete, onBack }) {
-  const [page, setPage] = useState(0);
-  const [confirmId, setConfirmId] = useState(null);
-  const PER_PAGE = 5;
-  const totalPages = Math.max(1, Math.ceil(manifest.length / PER_PAGE));
-  const items = manifest.slice(page * PER_PAGE, (page + 1) * PER_PAGE);
-  const fmtDate = (iso) => {
+interface LoadMenuProps {
+  manifest: SaveManifest
+  onLoad: (id: string) => void
+  onDelete: (id: string) => void
+  onBack: () => void
+}
+
+export function LoadMenu({ manifest, onLoad, onDelete, onBack }: LoadMenuProps) {
+  const [page, setPage] = useState(0)
+  const [confirmId, setConfirmId] = useState<string | null>(null)
+  const PER_PAGE = 5
+  const totalPages = Math.max(1, Math.ceil(manifest.length / PER_PAGE))
+  const items = manifest.slice(page * PER_PAGE, (page + 1) * PER_PAGE)
+  const fmtDate = (iso: string): string => {
     try {
       return new Date(iso).toLocaleString(undefined, {
         month: "short",
         day: "numeric",
         hour: "2-digit",
         minute: "2-digit",
-      });
+      })
     } catch {
-      return iso;
+      return iso
     }
-  };
+  }
   return (
     <div
       className="w-full min-h-screen flex items-center justify-center p-6"
@@ -152,8 +192,8 @@ export function LoadMenu({ manifest, onLoad, onDelete, onBack }) {
           <h2 className="text-2xl font-bold text-orange-200">Load Game</h2>
           <button
             onClick={() => {
-              playSnd("click");
-              onBack();
+              playSnd("click")
+              onBack()
             }}
             className="text-stone-400 hover:text-white text-sm"
           >
@@ -183,9 +223,9 @@ export function LoadMenu({ manifest, onLoad, onDelete, onBack }) {
                   <>
                     <button
                       onClick={() => {
-                        playSnd("click");
-                        onDelete(s.id);
-                        setConfirmId(null);
+                        playSnd("click")
+                        onDelete(s.id)
+                        setConfirmId(null)
                       }}
                       className="bg-red-400 text-stone-900 px-3 py-1.5 rounded-md text-xs font-semibold"
                     >
@@ -202,8 +242,8 @@ export function LoadMenu({ manifest, onLoad, onDelete, onBack }) {
                   <>
                     <button
                       onClick={() => {
-                        playSnd("click");
-                        onLoad(s.id);
+                        playSnd("click")
+                        onLoad(s.id)
                       }}
                       className="bg-orange-300 text-stone-900 px-4 py-1.5 rounded-md text-xs font-semibold"
                     >
@@ -244,10 +284,17 @@ export function LoadMenu({ manifest, onLoad, onDelete, onBack }) {
         )}
       </div>
     </div>
-  );
+  )
 }
 
-function Swatches({ label, value, options, onChange }) {
+interface SwatchesProps {
+  label: string
+  value: string
+  options: readonly string[]
+  onChange: (value: string) => void
+}
+
+function Swatches({ label, value, options, onChange }: SwatchesProps) {
   return (
     <div>
       <label className="text-stone-300 text-xs uppercase tracking-wider">{label}</label>
@@ -265,11 +312,28 @@ function Swatches({ label, value, options, onChange }) {
         ))}
       </div>
     </div>
-  );
+  )
 }
 
-export function CharacterCreator({ character, setCharacter, onPlay, onBack }) {
-  const upd = (k, v) => setCharacter((c) => ({ ...c, [k]: v }));
+const HAIR_STYLES = ["short", "med", "long"] as const
+
+interface CharacterCreatorProps {
+  character: Character
+  setCharacter: Dispatch<SetStateAction<Character>>
+  onPlay: () => void
+  onBack: () => void
+}
+
+export function CharacterCreator({
+  character,
+  setCharacter,
+  onPlay,
+  onBack,
+}: CharacterCreatorProps) {
+  // Generic indexed setter: K is the key, value must match Character[K].
+  // Catches `upd("hairStyle", "tall")` or `upd("name", 42)` at build time.
+  const upd = <K extends keyof Character>(key: K, value: Character[K]): void =>
+    setCharacter((c) => ({ ...c, [key]: value }))
   return (
     <div
       className="w-full min-h-screen flex items-center justify-center p-6"
@@ -311,7 +375,7 @@ export function CharacterCreator({ character, setCharacter, onPlay, onBack }) {
             <div>
               <label className="text-stone-300 text-xs uppercase tracking-wider">Hair style</label>
               <div className="flex gap-2 mt-1">
-                {["short", "med", "long"].map((s) => (
+                {HAIR_STYLES.map((s) => (
                   <button
                     key={s}
                     onClick={() => upd("hairStyle", s)}
@@ -350,8 +414,8 @@ export function CharacterCreator({ character, setCharacter, onPlay, onBack }) {
         <div className="flex justify-between mt-8">
           <button
             onClick={() => {
-              playSnd("click");
-              onBack();
+              playSnd("click")
+              onBack()
             }}
             className="text-stone-400 hover:text-white text-sm"
           >
@@ -359,8 +423,8 @@ export function CharacterCreator({ character, setCharacter, onPlay, onBack }) {
           </button>
           <button
             onClick={() => {
-              playSnd("click");
-              onPlay();
+              playSnd("click")
+              onPlay()
             }}
             className="bg-orange-300 hover:bg-orange-200 text-stone-900 font-semibold px-10 py-2.5 rounded-full"
           >
@@ -369,13 +433,19 @@ export function CharacterCreator({ character, setCharacter, onPlay, onBack }) {
         </div>
       </div>
     </div>
-  );
+  )
 }
 
-export function InventoryPanel({ hud, character, onClose }) {
-  const xpPct = (hud.xp / xpForLevel(hud.level)) * 100;
-  const unlocked = ACHIEVEMENTS.filter((a) => hud.achievements.includes(a.id));
-  const locked = ACHIEVEMENTS.filter((a) => !hud.achievements.includes(a.id));
+interface InventoryPanelProps {
+  hud: HudState
+  character: Character
+  onClose: () => void
+}
+
+export function InventoryPanel({ hud, character, onClose }: InventoryPanelProps) {
+  const xpPct = (hud.xp / xpForLevel(hud.level)) * 100
+  const unlocked = ACHIEVEMENTS.filter((a) => hud.achievements.includes(a.id))
+  const locked = ACHIEVEMENTS.filter((a) => !hud.achievements.includes(a.id))
   return (
     <div className="absolute inset-0 bg-black/75 backdrop-blur-sm rounded-lg flex items-center justify-center p-4 overflow-auto">
       <div className="bg-stone-900 rounded-xl p-6 max-w-2xl w-full max-h-full overflow-auto">
@@ -443,7 +513,7 @@ export function InventoryPanel({ hud, character, onClose }) {
           <h3 className="text-stone-300 font-semibold mb-2">Achievements</h3>
           <div className="grid sm:grid-cols-2 gap-2">
             {[...unlocked, ...locked].map((a) => {
-              const u = hud.achievements.includes(a.id);
+              const u = hud.achievements.includes(a.id)
               return (
                 <div
                   key={a.id}
@@ -463,11 +533,11 @@ export function InventoryPanel({ hud, character, onClose }) {
                   </div>
                   <div className="text-xs text-stone-400">{a.desc}</div>
                 </div>
-              );
+              )
             })}
           </div>
         </div>
       </div>
     </div>
-  );
+  )
 }

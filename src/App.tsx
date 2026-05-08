@@ -1,19 +1,31 @@
-import { useState, useRef, useEffect, useCallback } from "react";
-import { TILE_SIZE, VIEWPORT_WIDTH, VIEWPORT_HEIGHT, xpForLevel } from "./game/constants";
-import { ZONES, ACHIEVEMENTS, SKINS, HAIRS, SHIRTS, PANTS, ACCENTS } from "./game/data";
-import { buildOverworld, buildDelve } from "./game/levels";
-import { stepGame, makeInitialState } from "./game/physics";
-import { draw, drawPaused } from "./game/render";
-import { playSnd, setMuted as setMutedAudio } from "./game/audio";
-import { fetchManifest, persistManifest, getSave, setSave, deleteSave } from "./game/save";
-import { MainMenu, About, LoadMenu, CharacterCreator, InventoryPanel } from "./ui/screens";
+import { useState, useRef, useEffect, useCallback } from "react"
+import { TILE_SIZE, VIEWPORT_WIDTH, VIEWPORT_HEIGHT, xpForLevel } from "@/game/constants"
+import { ZONES, ACHIEVEMENTS, SKINS, HAIRS, SHIRTS, PANTS, ACCENTS } from "@/game/data"
+import type { AchievementId, ZoneId } from "@/game/data"
+import { buildOverworld, buildDelve } from "@/game/levels"
+import { stepGame, makeInitialState } from "@/game/physics"
+import { draw, drawPaused } from "@/game/render"
+import { playSnd, setMuted as setMutedAudio } from "@/game/audio"
+import { fetchManifest, persistManifest, getSave, setSave, deleteSave } from "@/game/save"
+import { MainMenu, About, LoadMenu, CharacterCreator, InventoryPanel } from "@/ui/screens"
+import type {
+  AppNotification,
+  AppScene,
+  Character,
+  GameState,
+  InputState,
+  NotifKind,
+  PhysicsCallbacks,
+  ZoneBanner,
+} from "@/game/types/physics"
+import type { HudState, SaveManifest } from "@/game/types/save"
 
 export default function App() {
-  const [scene, setScene] = useState("menu");
-  const [showInv, setShowInv] = useState(false);
-  const [paused, setPaused] = useState(false);
-  const [muted, setMuted] = useState(false);
-  const [character, setCharacter] = useState({
+  const [scene, setScene] = useState<AppScene>("menu")
+  const [showInv, setShowInv] = useState(false)
+  const [paused, setPaused] = useState(false)
+  const [muted, setMuted] = useState(false)
+  const [character, setCharacter] = useState<Character>({
     name: "Wren",
     skin: SKINS[1],
     hair: HAIRS[1],
@@ -21,22 +33,22 @@ export default function App() {
     shirt: SHIRTS[0],
     pants: PANTS[0],
     accent: ACCENTS[0],
-  });
-  const [hud, setHud] = useState({
+  })
+  const [hud, setHud] = useState<HudState>({
     level: 1,
     xp: 0,
     materials: 0,
     discovered: [],
     achievements: [],
     inDelve: false,
-  });
-  const [notifs, setNotifs] = useState([]);
-  const [zoneBanner, setZoneBanner] = useState(null);
-  const [manifest, setManifest] = useState([]);
+  })
+  const [notifs, setNotifs] = useState<AppNotification[]>([])
+  const [zoneBanner, setZoneBanner] = useState<ZoneBanner | null>(null)
+  const [manifest, setManifest] = useState<SaveManifest>([])
 
-  const canvasRef = useRef(null);
-  const stateRef = useRef(null);
-  const inputRef = useRef({
+  const canvasRef = useRef<HTMLCanvasElement | null>(null)
+  const stateRef = useRef<GameState | null>(null)
+  const inputRef = useRef<InputState>({
     left: false,
     right: false,
     up: false,
@@ -47,114 +59,119 @@ export default function App() {
     dashEdge: false,
     interact: false,
     interactEdge: false,
-  });
-  const charRef = useRef(character);
-  charRef.current = character;
-  const hudRef = useRef(hud);
-  hudRef.current = hud;
-  const pausedRef = useRef(paused);
-  pausedRef.current = paused;
+  })
+  const charRef = useRef<Character>(character)
+  charRef.current = character
+  const hudRef = useRef<HudState>(hud)
+  hudRef.current = hud
+  const pausedRef = useRef<boolean>(paused)
+  pausedRef.current = paused
 
   useEffect(() => {
-    setMutedAudio(muted);
-  }, [muted]);
+    setMutedAudio(muted)
+  }, [muted])
   useEffect(() => {
-    setManifest(fetchManifest());
-  }, []);
+    setManifest(fetchManifest())
+  }, [])
 
-  const pushNotif = useCallback((text, kind) => {
-    const id = Math.random().toString(36).slice(2);
-    setNotifs((n) => [...n, { id, text, kind, born: performance.now() }]);
-    setTimeout(() => setNotifs((n) => n.filter((x) => x.id !== id)), 3500);
-  }, []);
+  const pushNotif = useCallback((text: string, kind: NotifKind): void => {
+    const id = Math.random().toString(36).slice(2)
+    setNotifs((n) => [...n, { id, text, kind, born: performance.now() }])
+    setTimeout(() => setNotifs((n) => n.filter((x) => x.id !== id)), 3500)
+  }, [])
 
   const grantAch = useCallback(
-    (id) => {
-      if (hudRef.current.achievements.includes(id)) return;
-      const a = ACHIEVEMENTS.find((x) => x.id === id);
-      setHud((h) => ({ ...h, achievements: [...h.achievements, id] }));
-      pushNotif("Achievement — " + a.name, "ach");
-      playSnd("achievement");
+    (id: AchievementId): void => {
+      if (hudRef.current.achievements.includes(id)) return
+      // Find can't actually return undefined here — id is constrained to the
+      // achievement table's own keys. The non-null assertion documents that.
+      const a = ACHIEVEMENTS.find((x) => x.id === id)!
+      setHud((h) => ({ ...h, achievements: [...h.achievements, id] }))
+      pushNotif("Achievement — " + a.name, "ach")
+      playSnd("achievement")
     },
     [pushNotif],
-  );
+  )
 
   const grantXP = useCallback(
-    (amt, label) => {
+    (amt: number, label?: string): void => {
       setHud((h) => {
         let xp = h.xp + amt,
-          lvl = h.level;
-        const ups = [];
+          lvl = h.level
+        const ups: number[] = []
         while (xp >= xpForLevel(lvl)) {
-          xp -= xpForLevel(lvl);
-          lvl++;
-          ups.push(lvl);
+          xp -= xpForLevel(lvl)
+          lvl++
+          ups.push(lvl)
         }
-        if (label) pushNotif("+" + amt + " XP · " + label, "xp");
+        if (label) pushNotif("+" + amt + " XP · " + label, "xp")
         ups.forEach((u) => {
-          pushNotif("Level " + u, "level");
-          playSnd("level_up");
-        });
-        return { ...h, xp, level: lvl };
-      });
+          pushNotif("Level " + u, "level")
+          playSnd("level_up")
+        })
+        return { ...h, xp, level: lvl }
+      })
     },
     [pushNotif],
-  );
+  )
 
   const discover = useCallback(
-    (zoneId) => {
-      if (hudRef.current.discovered.includes(zoneId)) return;
-      const z = ZONES.find((x) => x.id === zoneId);
-      setHud((h) => ({ ...h, discovered: [...h.discovered, zoneId] }));
-      setZoneBanner({ name: z.name, t: performance.now() });
-      grantXP(z.xp, "discovery");
-      playSnd("discover");
+    (zoneId: ZoneId): void => {
+      if (hudRef.current.discovered.includes(zoneId)) return
+      const z = ZONES.find((x) => x.id === zoneId)!
+      setHud((h) => ({ ...h, discovered: [...h.discovered, zoneId] }))
+      setZoneBanner({ name: z.name, t: performance.now() })
+      grantXP(z.xp, "discovery")
+      playSnd("discover")
     },
     [grantXP],
-  );
+  )
 
-  const transitionToDelve = useCallback(() => {
-    const s = stateRef.current;
-    s.current = "delve";
-    s.level = s.dl;
-    s.p.x = s.dl.spawn.x;
-    s.p.y = s.dl.spawn.y;
-    s.p.vx = 0;
-    s.p.vy = 0;
-    s.p.dashFrames = 0;
-    s.p.dashCool = 0;
-    s.collected = new Set();
-    setHud((h) => ({ ...h, inDelve: true }));
-    grantAch("a7");
-    pushNotif("Entered the Delve", "discovery");
-    playSnd("portal");
-  }, [grantAch, pushNotif]);
+  const transitionToDelve = useCallback((): void => {
+    const s = stateRef.current
+    if (!s) return
+    s.current = "delve"
+    s.level = s.dl
+    s.p.x = s.dl.spawn.x
+    s.p.y = s.dl.spawn.y
+    s.p.vx = 0
+    s.p.vy = 0
+    s.p.dashFrames = 0
+    s.p.dashCool = 0
+    s.collected = new Set<string>()
+    setHud((h) => ({ ...h, inDelve: true }))
+    grantAch("a7")
+    pushNotif("Entered the Delve", "discovery")
+    playSnd("portal")
+  }, [grantAch, pushNotif])
 
-  const transitionToOver = useCallback(() => {
-    const s = stateRef.current;
-    s.current = "over";
-    s.level = s.ow;
-    s.p.x = 100 * TILE_SIZE;
-    s.p.y = (s.ow.ground[100] - 3) * TILE_SIZE;
-    s.p.vx = 0;
-    s.p.vy = 0;
-    s.p.dashFrames = 0;
-    s.p.dashCool = 0;
-    setHud((h) => ({ ...h, inDelve: false }));
-    pushNotif("Returned to the surface", "discovery");
-    playSnd("portal");
-  }, [pushNotif]);
+  const transitionToOver = useCallback((): void => {
+    const s = stateRef.current
+    if (!s) return
+    s.current = "over"
+    s.level = s.ow
+    s.p.x = 100 * TILE_SIZE
+    // Heightmap was built with W=110 entries; index 100 is provably populated.
+    s.p.y = (s.ow.ground[100]! - 3) * TILE_SIZE
+    s.p.vx = 0
+    s.p.vy = 0
+    s.p.dashFrames = 0
+    s.p.dashCool = 0
+    setHud((h) => ({ ...h, inDelve: false }))
+    pushNotif("Returned to the surface", "discovery")
+    playSnd("portal")
+  }, [pushNotif])
 
-  const saveCurrent = useCallback(() => {
-    const s = stateRef.current;
-    if (!s) return;
-    const id = "s_" + Date.now() + "_" + Math.random().toString(36).slice(2, 6);
+  const saveCurrent = useCallback((): void => {
+    const s = stateRef.current
+    if (!s) return
+    const id = "s_" + Date.now() + "_" + Math.random().toString(36).slice(2, 6)
     const data = {
       character: charRef.current,
       hud: hudRef.current,
       pos: { x: s.p.x, y: s.p.y, scene: s.current },
       collected: Array.from(s.collected),
-    };
+    }
     const meta = {
       id,
       name: charRef.current.name,
@@ -163,153 +180,184 @@ export default function App() {
       discovered: hudRef.current.discovered.length,
       date: new Date().toISOString(),
       where: s.current === "delve" ? "In the Delve" : "Surface",
-    };
+    }
     if (setSave(id, data)) {
-      const next = [meta, ...manifest];
-      persistManifest(next);
-      setManifest(next);
-      pushNotif("Saved", "discovery");
-    } else pushNotif("Save failed", "xp");
-  }, [manifest, pushNotif]);
+      const next = [meta, ...manifest]
+      persistManifest(next)
+      setManifest(next)
+      pushNotif("Saved", "discovery")
+    } else pushNotif("Save failed", "xp")
+  }, [manifest, pushNotif])
 
-  const startGameFresh = useCallback(() => {
+  const startGameFresh = useCallback((): void => {
     const ow = buildOverworld(),
-      dl = buildDelve();
-    stateRef.current = makeInitialState(ow, dl, ow.spawn.x, ow.spawn.y, "over", new Set());
-    setHud({ level: 1, xp: 0, materials: 0, discovered: [], achievements: [], inDelve: false });
-    setNotifs([]);
-    setPaused(false);
-    setShowInv(false);
-    setScene("play");
-  }, []);
+      dl = buildDelve()
+    stateRef.current = makeInitialState(ow, dl, ow.spawn.x, ow.spawn.y, "over", new Set<string>())
+    setHud({ level: 1, xp: 0, materials: 0, discovered: [], achievements: [], inDelve: false })
+    setNotifs([])
+    setPaused(false)
+    setShowInv(false)
+    setScene("play")
+  }, [])
 
   const loadGameById = useCallback(
-    (id) => {
-      const data = getSave(id);
+    (id: string): void => {
+      const data = getSave(id)
       if (!data) {
-        pushNotif("Load failed", "xp");
-        return;
+        pushNotif("Load failed", "xp")
+        return
       }
       const ow = buildOverworld(),
-        dl = buildDelve();
+        dl = buildDelve()
       stateRef.current = makeInitialState(
         ow,
         dl,
         data.pos.x,
         data.pos.y,
         data.pos.scene,
-        new Set(data.collected || []),
-      );
-      setCharacter(data.character);
-      setHud({ ...data.hud, inDelve: data.pos.scene === "delve" });
-      setNotifs([]);
-      setPaused(false);
-      setShowInv(false);
-      setScene("play");
+        new Set<string>(data.collected || []),
+      )
+      setCharacter(data.character)
+      setHud({ ...data.hud, inDelve: data.pos.scene === "delve" })
+      setNotifs([])
+      setPaused(false)
+      setShowInv(false)
+      setScene("play")
     },
     [pushNotif],
-  );
+  )
 
   const deleteSaveById = useCallback(
-    (id) => {
-      deleteSave(id);
-      const next = manifest.filter((s) => s.id !== id);
-      persistManifest(next);
-      setManifest(next);
+    (id: string): void => {
+      deleteSave(id)
+      const next = manifest.filter((s) => s.id !== id)
+      persistManifest(next)
+      setManifest(next)
     },
     [manifest],
-  );
+  )
 
   useEffect(() => {
-    const inp = inputRef.current;
-    const down = (e) => {
-      const k = e.key.toLowerCase();
-      if (["arrowleft", "a"].includes(k)) inp.left = true;
-      if (["arrowright", "d"].includes(k)) inp.right = true;
-      if (["arrowup", "w"].includes(k)) inp.up = true;
-      if (["arrowdown", "s"].includes(k)) inp.down = true;
+    const inp = inputRef.current
+    const down = (e: KeyboardEvent): void => {
+      const k = e.key.toLowerCase()
+      if (["arrowleft", "a"].includes(k)) inp.left = true
+      if (["arrowright", "d"].includes(k)) inp.right = true
+      if (["arrowup", "w"].includes(k)) inp.up = true
+      if (["arrowdown", "s"].includes(k)) inp.down = true
       if (["arrowup", "w", " ", "z"].includes(k)) {
-        if (!inp.jump) inp.jumpEdge = true;
-        inp.jump = true;
+        if (!inp.jump) inp.jumpEdge = true
+        inp.jump = true
       }
       if (["shift", "x", "k"].includes(k)) {
-        if (!inp.dash) inp.dashEdge = true;
-        inp.dash = true;
+        if (!inp.dash) inp.dashEdge = true
+        inp.dash = true
       }
       if (k === "e" || k === "enter") {
-        if (!inp.interact) inp.interactEdge = true;
-        inp.interact = true;
+        if (!inp.interact) inp.interactEdge = true
+        inp.interact = true
       }
       if (k === "i" || k === "tab") {
-        e.preventDefault();
-        setShowInv((v) => !v);
+        e.preventDefault()
+        setShowInv((v) => !v)
       }
-      if (k === "escape" || k === "p") setPaused((v) => !v);
-      if (k === "m") setMuted((v) => !v);
-      if (["arrowup", "arrowdown", "arrowleft", "arrowright", " "].includes(k)) e.preventDefault();
-    };
-    const up = (e) => {
-      const k = e.key.toLowerCase();
-      if (["arrowleft", "a"].includes(k)) inp.left = false;
-      if (["arrowright", "d"].includes(k)) inp.right = false;
-      if (["arrowup", "w"].includes(k)) inp.up = false;
-      if (["arrowdown", "s"].includes(k)) inp.down = false;
-      if (["arrowup", "w", " ", "z"].includes(k)) inp.jump = false;
-      if (["shift", "x", "k"].includes(k)) inp.dash = false;
-      if (k === "e" || k === "enter") inp.interact = false;
-    };
-    window.addEventListener("keydown", down);
-    window.addEventListener("keyup", up);
+      if (k === "escape" || k === "p") setPaused((v) => !v)
+      if (k === "m") setMuted((v) => !v)
+      if (["arrowup", "arrowdown", "arrowleft", "arrowright", " "].includes(k)) e.preventDefault()
+    }
+    const up = (e: KeyboardEvent): void => {
+      const k = e.key.toLowerCase()
+      if (["arrowleft", "a"].includes(k)) inp.left = false
+      if (["arrowright", "d"].includes(k)) inp.right = false
+      if (["arrowup", "w"].includes(k)) inp.up = false
+      if (["arrowdown", "s"].includes(k)) inp.down = false
+      if (["arrowup", "w", " ", "z"].includes(k)) inp.jump = false
+      if (["shift", "x", "k"].includes(k)) inp.dash = false
+      if (k === "e" || k === "enter") inp.interact = false
+    }
+    window.addEventListener("keydown", down)
+    window.addEventListener("keyup", up)
     return () => {
-      window.removeEventListener("keydown", down);
-      window.removeEventListener("keyup", up);
-    };
-  }, []);
+      window.removeEventListener("keydown", down)
+      window.removeEventListener("keyup", up)
+    }
+  }, [])
+
+  // Resize the canvas's pixel buffer to match its on-screen size × DPR so
+  // rendering happens at native resolution (sharp on HiDPI / 4K). Aspect is
+  // locked to VIEWPORT_WIDTH:VIEWPORT_HEIGHT to avoid distortion.
+  useEffect(() => {
+    if (scene !== "play") return
+    const cv = canvasRef.current
+    if (!cv) return
+    const updateCanvas = (): void => {
+      const aspect = VIEWPORT_WIDTH / VIEWPORT_HEIGHT
+      const winW = window.innerWidth
+      const winH = window.innerHeight
+      const cssW = winW / winH > aspect ? winH * aspect : winW
+      const cssH = winW / winH > aspect ? winH : winW / aspect
+      cv.style.width = `${cssW}px`
+      cv.style.height = `${cssH}px`
+      const dpr = window.devicePixelRatio || 1
+      cv.width = Math.round(cssW * dpr)
+      cv.height = Math.round(cssH * dpr)
+    }
+    updateCanvas()
+    window.addEventListener("resize", updateCanvas)
+    return () => window.removeEventListener("resize", updateCanvas)
+  }, [scene])
 
   useEffect(() => {
-    if (scene !== "play") return;
-    const cv = canvasRef.current;
-    if (!cv) return;
-    const ctx = cv.getContext("2d");
-    const callbacks = {
+    if (scene !== "play") return
+    const cv = canvasRef.current
+    if (!cv) return
+    const ctx = cv.getContext("2d")
+    if (!ctx) return
+    const callbacks: PhysicsCallbacks = {
       grantAch,
       grantXP,
       discover,
-      addMaterials: (n) => setHud((h) => ({ ...h, materials: h.materials + n })),
+      addMaterials: (n: number) => setHud((h) => ({ ...h, materials: h.materials + n })),
       getMaterials: () => hudRef.current.materials,
       transitionToDelve,
       transitionToOver,
-    };
-    let raf,
-      last = performance.now();
-    const loop = (now) => {
-      const dt = Math.min(33, now - last);
-      last = now;
-      if (!pausedRef.current) {
-        stepGame(stateRef.current, inputRef.current, charRef.current, callbacks, dt);
-        draw(ctx, stateRef.current, charRef.current);
-      } else {
-        drawPaused(ctx);
+    }
+    let raf = 0,
+      last = performance.now()
+    const loop = (now: number): void => {
+      const dt = Math.min(33, now - last)
+      last = now
+      const s = stateRef.current
+      if (!s) {
+        raf = requestAnimationFrame(loop)
+        return
       }
-      raf = requestAnimationFrame(loop);
-    };
-    raf = requestAnimationFrame(loop);
-    return () => cancelAnimationFrame(raf);
-  }, [scene, grantAch, grantXP, discover, transitionToDelve, transitionToOver]);
+      if (!pausedRef.current) {
+        stepGame(s, inputRef.current, charRef.current, callbacks, dt)
+        draw(ctx, s, charRef.current)
+      } else {
+        drawPaused(ctx)
+      }
+      raf = requestAnimationFrame(loop)
+    }
+    raf = requestAnimationFrame(loop)
+    return () => cancelAnimationFrame(raf)
+  }, [scene, grantAch, grantXP, discover, transitionToDelve, transitionToOver])
 
   if (scene === "menu")
     return (
       <MainMenu
         manifest={manifest}
         muted={muted}
-        onContinue={() => loadGameById(manifest[0].id)}
+        // hasSaves gates this in MainMenu; the `!` documents the invariant.
+        onContinue={() => loadGameById(manifest[0]!.id)}
         onNew={() => setScene("creator")}
         onLoad={() => setScene("loadmenu")}
         onAbout={() => setScene("about")}
         onToggleMute={() => setMuted((v) => !v)}
       />
-    );
-  if (scene === "about") return <About onBack={() => setScene("menu")} />;
+    )
+  if (scene === "about") return <About onBack={() => setScene("menu")} />
   if (scene === "loadmenu")
     return (
       <LoadMenu
@@ -318,7 +366,7 @@ export default function App() {
         onDelete={deleteSaveById}
         onBack={() => setScene("menu")}
       />
-    );
+    )
   if (scene === "creator")
     return (
       <CharacterCreator
@@ -327,20 +375,20 @@ export default function App() {
         onPlay={startGameFresh}
         onBack={() => setScene("menu")}
       />
-    );
+    )
 
-  const xpPct = (hud.xp / xpForLevel(hud.level)) * 100;
+  const xpPct = (hud.xp / xpForLevel(hud.level)) * 100
   return (
     <div
-      className="w-full min-h-screen flex items-center justify-center p-4"
+      className="w-screen h-screen flex items-center justify-center overflow-hidden"
       style={{ background: "#0a0518" }}
     >
-      <div className="relative" style={{ width: VIEWPORT_WIDTH, height: VIEWPORT_HEIGHT }}>
+      <div className="relative">
         <canvas
           ref={canvasRef}
           width={VIEWPORT_WIDTH}
           height={VIEWPORT_HEIGHT}
-          className="block rounded-lg shadow-2xl"
+          className="block shadow-2xl"
         />
         <div className="absolute top-3 left-3 flex items-center gap-3 pointer-events-none">
           <div className="bg-black/40 backdrop-blur rounded-lg px-3 py-2 text-white text-sm">
@@ -423,8 +471,8 @@ export default function App() {
               <div className="flex flex-col gap-2 items-center">
                 <button
                   onClick={() => {
-                    playSnd("click");
-                    setPaused(false);
+                    playSnd("click")
+                    setPaused(false)
                   }}
                   className="bg-orange-300 text-stone-900 px-8 py-2 rounded-full font-semibold"
                 >
@@ -432,8 +480,8 @@ export default function App() {
                 </button>
                 <button
                   onClick={() => {
-                    playSnd("click");
-                    saveCurrent();
+                    playSnd("click")
+                    saveCurrent()
                   }}
                   className="bg-emerald-400 text-stone-900 px-8 py-2 rounded-full font-semibold"
                 >
@@ -441,8 +489,8 @@ export default function App() {
                 </button>
                 <button
                   onClick={() => {
-                    playSnd("click");
-                    setShowInv(true);
+                    playSnd("click")
+                    setShowInv(true)
                   }}
                   className="text-stone-300 hover:text-white text-sm"
                 >
@@ -456,9 +504,9 @@ export default function App() {
                 </button>
                 <button
                   onClick={() => {
-                    playSnd("click");
-                    setPaused(false);
-                    setScene("menu");
+                    playSnd("click")
+                    setPaused(false)
+                    setScene("menu")
                   }}
                   className="text-stone-300 hover:text-white text-sm"
                 >
@@ -473,5 +521,5 @@ export default function App() {
         )}
       </div>
     </div>
-  );
+  )
 }

@@ -1,5 +1,9 @@
-import { TILE_SIZE } from "./constants";
+import { TILE_SIZE } from "@/game/constants"
+import type { Achievement, Palette, ProposedMod, Zone } from "@/game/types/data"
 
+// `as const satisfies readonly Zone[]` is the trick: `as const` preserves the
+// literal types ("z1", "Sunrise Clearing", etc.) so we can derive ZoneId
+// below; `satisfies` validates the shape without widening it.
 export const ZONES = [
   { id: "z1", name: "Sunrise Clearing", x: 0, y: 0, w: 14 * TILE_SIZE, h: 22 * TILE_SIZE, xp: 90 },
   {
@@ -47,7 +51,7 @@ export const ZONES = [
     h: 22 * TILE_SIZE,
     xp: 220,
   },
-];
+] as const satisfies readonly Zone[]
 
 export const ACHIEVEMENTS = [
   { id: "a1", name: "First Steps", desc: "Take your first run" },
@@ -59,9 +63,22 @@ export const ACHIEVEMENTS = [
   { id: "a7", name: "Threshold", desc: "Step through the Riftgate" },
   { id: "a8", name: "Summit", desc: "Reach the Delve summit" },
   { id: "a9", name: "Climbing the Ladder", desc: "Reach Level 5" },
-];
+] as const satisfies readonly Achievement[]
 
-export const SKINS = ["#f4d4b8", "#e8c1a0", "#d4a07e", "#a87154", "#7a4d3a", "#523829"]
+// Derived ID unions — single source of truth is the data tables above.
+// Add a new achievement and the union widens automatically; remove one and
+// every stale reference becomes a build error.
+export type ZoneId = (typeof ZONES)[number]["id"]
+export type AchievementId = (typeof ACHIEVEMENTS)[number]["id"]
+
+export const SKINS = [
+  "#f4d4b8",
+  "#e8c1a0",
+  "#d4a07e",
+  "#a87154",
+  "#7a4d3a",
+  "#523829",
+] as const satisfies Palette
 
 export const HAIRS = [
   "#1a1410",
@@ -72,7 +89,7 @@ export const HAIRS = [
   "#e8d8a0",
   "#5a3a8a",
   "#c84080",
-]
+] as const satisfies Palette
 
 export const SHIRTS = [
   "#5e7c8e",
@@ -83,7 +100,7 @@ export const SHIRTS = [
   "#3a3a3a",
   "#d4a050",
   "#7a4080",
-]
+] as const satisfies Palette
 
 export const PANTS = [
   "#3a4250",
@@ -94,7 +111,7 @@ export const PANTS = [
   "#252525",
   "#5a5050",
   "#3a2a4a",
-]
+] as const satisfies Palette
 
 export const ACCENTS = [
   "#e8a04a",
@@ -105,7 +122,7 @@ export const ACCENTS = [
   "#a04ae8",
   "#ffffff",
   "#1a1a1a",
-]
+] as const satisfies Palette
 
 export const PROPOSED_MODS = [
   { n: "Phase Dash", d: "Pass through enemies" },
@@ -114,4 +131,4 @@ export const PROPOSED_MODS = [
   { n: "Quickfeet", d: "+15% movement speed" },
   { n: "Soft Land", d: "No fall stagger" },
   { n: "Echo", d: "Dash leaves a damaging trail" },
-]
+] as const satisfies readonly ProposedMod[]
