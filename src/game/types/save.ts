@@ -36,6 +36,7 @@ export interface SaveData {
   // created before procgen landed — those default to a fresh seed on load.
   delveSeed?: number
   delveTier?: number
+  portalDestroyed?: boolean
 }
 
 // One row in the load-menu list. Cheap to enumerate.

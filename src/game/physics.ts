@@ -725,6 +725,7 @@ export function makeInitialState(
   collected: Set<string>,
   defeated: ReadonlySet<number> = new Set<number>(),
   delveCleared = false,
+  portalDestroyed = false,
 ): GameState {
   const lv = current === "delve" ? dl : ow
   const st: GameState = {
@@ -774,6 +775,7 @@ export function makeInitialState(
     enemies: current === "delve" ? spawnEnemiesFrom(dl.enemySpawns, defeated) : [],
     defeatedEnemies: new Set<number>(defeated),
     delveCleared,
+    portalDestroyed,
     hitStop: 0,
     collected,
     particles: [],

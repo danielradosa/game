@@ -51,13 +51,25 @@ draw(ctx, s, ch, alpha = accumulator / TICK_MS)
 ### `src/game/` — framework-agnostic engine (no React imports)
 
 - `constants.ts` — tile size `TILE_SIZE=36`, viewport `VIEWPORT_WIDTH=880 × VIEWPORT_HEIGHT=520`, physics tuning (gravity, jump velocities, dash, coyote/jump-buffer frames), magnet radius, combat tuning (HP, iframes, slash frames/cooldown/reach, enemy stats), `xpForLevel(level)`.
-- `levels.ts` — `buildOverworld()` (still hand-authored) and `generateDelve(seed, tier)` (procedural). Tilemaps are `TileChar[][]` where chars encode entities: `#` solid, `=` one-way platform, `c` collectible, `C` big collectible, `n` NPC, `p` portal-to-delve, `r` portal-to-overworld. `isSolid` / `isPlat` are the predicates. `DelveLevel` carries `enemySpawns: EnemySpawn[]`, `seed: number`, `tier: number`. The delve regenerates fresh on every portal entry; the seed is persisted in saves so reloading mid-delve restores the same layout. Reachability is enforced structurally (alternating left/right platforms with bounded vertical gaps) — no graph-search.
+- `levels.ts` — `buildOverworld()` (still hand-authored) and `generateDelve(seed, tier)` (procedural). Tilemaps are `TileChar[][]` where chars encode entities: `#` solid, `=` one-way platform, `c` collectible, `C` big collectible, `n` NPC, `p` portal-to-delve, `r` portal-to-overworld, `X` sealed-portal rubble (inert visual marker). `isSolid` / `isPlat` are the predicates. `DelveLevel` carries `enemySpawns`, `seed`, `tier`. Delves are **horizontal sidescroll corridors**: width (40-70 + tier·8), platform count (~W/9 to W/5), and enemy count (~W/14 to W/8 + tier·2) all roll per seed. Floor is continuous so traversal is trivially completable; platforms add vertical reward paths. The big cache + return portal anchor at the far-right end so you have to traverse.
 - `rng.ts` — seeded mulberry32 PRNG (`seedRng`, `freshSeed`) + helpers (`randInt`, `randRange`, `pick`, `shuffle`, `chance`). All procgen flows through here; never call `Math.random()` from a generator.
 - `physics.ts` — `stepGame(s, inp, ch, cb, dt)` mutates state in place. `makeInitialState(ow, dl, x, y, current, collected, defeatedEnemies, delveCleared)` builds the state tree. `spawnEnemiesFrom(spawns, defeated)` rebuilds the active enemy list filtered by the per-run defeated set. `snapRenderPrev(s)` zeros the interpolation snapshot. Implements Warframe-inspired parkour (bullet jump, slide, roll, aim glide, wall latch), pickup magnet, sword auto-slash on enemy overlap, hit-stop on hit, ghost AI that chases the player. The tunables block at the top of the file is the place to tweak feel.
 - `render.ts` — `draw(ctx, s, ch, alpha)` renders sky → parallax → bg particles → tiles → entities → enemies → particles → player → slash → vignette. Reads the lerped player/camera (see fixed-timestep section). `drawPaused(ctx)` is the freeze-frame overlay.
 - `sprites.ts` — `SPRITES` (image map, all `null` by default), `ASSET_SIZES` (sizing contract), `tryDrawSprite()`, `isReady()` type-predicate. Renderer falls back to procedural drawing when a sprite isn't loaded. **All character sprites must face right; the renderer mirrors automatically.**
 - `audio.ts` — `playSnd(name)` / `setMuted()`. Procedural WebAudio by default; replace `SOUNDS[x]` with an `Audio()` element to use a file.
-- `save.ts` — localStorage persistence under `drift:save:*` and `drift:save_manifest`. Per-save data is `{ character, hud, pos, collected[], defeatedEnemies[], delveCleared, delveSeed?, delveTier? }`; manifest is the index shown in the load menu. A reserved `"autosave"` slot is overwritten in place every 20s while playing (skipped while paused / in dialog / out of `play` scene).
+- `save.ts` — localStorage persistence under `drift:save:*` and `drift:save_manifest`. Per-save data is `{ character, hud, pos, collected[], defeatedEnemies[], delveCleared, delveSeed?, delveTier?, portalDestroyed? }`; manifest is the index shown in the load menu. A reserved `"autosave"` slot is overwritten in place every 20s while playing (skipped while paused / in dialog / out of `play` scene).
+
+### Portal state machine
+
+The overworld portal is a single-state machine. Entry is allowed iff `s.portalDestroyed === false`. The delve persists across in/out trips (no regen on entry) so the player can leave and return mid-clear without losing progress. The state transitions on the **cleared exit** (player walks into `r` after `delveCleared` was set):
+
+```
+[fresh, tier=N] --(clear + exit)--> 50% [fresh, tier=N+1, new seed] (hardmode)
+                                     50% [destroyed]                 (rubble)
+[destroyed] --(entry attempt)-- "The rift is sealed", no transition
+```
+
+When the portal seals, every `"p"` tile in `s.ow.map` is mutated to `"X"` so the world matches the flag. On load with `portalDestroyed=true`, the freshly-built overworld map gets the same `"p" → "X"` replay applied before `makeInitialState`. The hardmode regen reuses `generateDelve(freshSeed(), prevTier+1)` and wipes `defeatedEnemies` / `delveCleared` / delve-scoped `collected` keys.
 - `data.ts` — static tables (`ZONES`, `ACHIEVEMENTS`, `SKINS`, `HAIRS`, `SHIRTS`, `PANTS`, `ACCENTS`, `PROPOSED_MODS`, `MODS`). Each table uses `as const satisfies readonly T[]` so the literal types survive, and `ZoneId` / `AchievementId` / `ModId` are derived via `(typeof TABLE)[number]["id"]` — adding a row widens the union automatically.
 - `types/{physics,data,sprites,save}.ts` — type contracts shared across the engine.
 

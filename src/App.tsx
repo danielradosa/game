@@ -152,16 +152,14 @@ export default function App() {
   const transitionToDelve = useCallback((): void => {
     const s = stateRef.current
     if (!s) return
-    // Regenerate the delve fresh on every entry — each portal trip is a new
-    // procedural layout. defeatedEnemies/delveCleared are scoped to a single
-    // delve session, so they reset; collected entries keyed under "delve:" are
-    // also stale (point at tiles that no longer exist) and get pruned.
-    s.dl = generateDelve(freshSeed(), 0)
-    s.defeatedEnemies = new Set<number>()
-    s.delveCleared = false
-    for (const k of Array.from(s.collected)) {
-      if (k.startsWith("delve:")) s.collected.delete(k)
+    // Sealed portals refuse entry. They only become sealed via the coin flip
+    // on a cleared exit (see transitionToOver).
+    if (s.portalDestroyed) {
+      pushNotif("The rift is sealed", "xp")
+      return
     }
+    // Use the existing s.dl as-is — the delve persists across visits until the
+    // player clears it AND exits, at which point the coin flip fires.
     s.current = "delve"
     s.level = s.dl
     s.p.x = s.dl.spawn.x
@@ -197,7 +195,35 @@ export default function App() {
     setHp(s.p.hp)
     snapRenderPrev(s)
     setHud((h) => ({ ...h, inDelve: false }))
-    pushNotif("Returned to the surface", "discovery")
+
+    // Coin flip — only fires on a cleared exit. 50/50: the rift either
+    // reopens as hardmode (regenerate with tier+1, fresh seed, fresh enemies
+    // and cells) or seals shut forever (overworld portal becomes rubble).
+    if (s.delveCleared) {
+      const sealForever = Math.random() < 0.5
+      // Either way the current delve session is over, so wipe its scoped state.
+      s.defeatedEnemies = new Set<number>()
+      s.delveCleared = false
+      for (const k of Array.from(s.collected)) {
+        if (k.startsWith("delve:")) s.collected.delete(k)
+      }
+      if (sealForever) {
+        s.portalDestroyed = true
+        // Mutate every "p" tile in the overworld to "X" (rubble) so the world
+        // state matches the flag and the player sees the visual cue.
+        for (let y = 0; y < s.ow.H; y++) {
+          for (let x = 0; x < s.ow.W; x++) {
+            if (s.ow.map[y]![x] === "p") s.ow.map[y]![x] = "X"
+          }
+        }
+        pushNotif("The rift collapses behind you", "discovery")
+      } else {
+        s.dl = generateDelve(freshSeed(), s.dl.tier + 1)
+        pushNotif("The rift pulses with malice — it returns harder", "discovery")
+      }
+    } else {
+      pushNotif("Returned to the surface", "discovery")
+    }
     playSnd("portal")
   }, [pushNotif])
 
@@ -214,6 +240,7 @@ export default function App() {
       delveCleared: s.delveCleared,
       delveSeed: s.dl.seed,
       delveTier: s.dl.tier,
+      portalDestroyed: s.portalDestroyed,
     }
     const meta = {
       id,
@@ -250,6 +277,7 @@ export default function App() {
       delveCleared: s.delveCleared,
       delveSeed: s.dl.seed,
       delveTier: s.dl.tier,
+      portalDestroyed: s.portalDestroyed,
     }
     const meta = {
       id,
@@ -324,6 +352,17 @@ export default function App() {
       const inDelve = data.pos.scene === "delve"
       const startX = inDelve && !hasDelveSeed ? dl.spawn.x : data.pos.x
       const startY = inDelve && !hasDelveSeed ? dl.spawn.y : data.pos.y
+      // Reapply portal destruction to the freshly-built overworld map. The map
+      // is rebuilt every load (we don't serialize it), so saved rubble-state
+      // has to be replayed by mutating "p" → "X" before makeInitialState.
+      const portalDestroyed = data.portalDestroyed ?? false
+      if (portalDestroyed) {
+        for (let y = 0; y < ow.H; y++) {
+          for (let x = 0; x < ow.W; x++) {
+            if (ow.map[y]![x] === "p") ow.map[y]![x] = "X"
+          }
+        }
+      }
       stateRef.current = makeInitialState(
         ow,
         dl,
@@ -333,6 +372,7 @@ export default function App() {
         new Set<string>(data.collected || []),
         new Set<number>(data.defeatedEnemies || []),
         data.delveCleared ?? false,
+        portalDestroyed,
       )
       setCharacter(data.character)
       // Older saves predate the quest/mods/sword fields — default forward

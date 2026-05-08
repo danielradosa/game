@@ -5,7 +5,9 @@
 // Match the keys produced by levels.ts:
 //   "#" solid  · "=" one-way platform  · "c" collectible  · "C" big collectible
 //   "n" NPC    · "p" portal-to-delve   · "r" portal-to-overworld  · " " empty
-export type TileChar = "#" | "=" | "c" | "C" | "n" | "p" | "r" | " "
+// "X" is rubble — what a destroyed delve portal becomes after the coin flip
+// seals it shut. Inert: no interact, not solid, just a visual marker.
+export type TileChar = "#" | "=" | "c" | "C" | "n" | "p" | "r" | "X" | " "
 
 export type Theme = "over" | "delve"
 export type SceneId = "over" | "delve"
@@ -189,6 +191,7 @@ export interface GameState {
   enemies: Enemy[] // active for the current scene; rebuilt on transition
   defeatedEnemies: Set<number> // delve spawnIndex values, persistent for the run
   delveCleared: boolean // true once every delve enemy has been defeated
+  portalDestroyed: boolean // overworld portal has been sealed forever (coin flip on cleared exit)
   hitStop: number // when > 0, physics ticks freeze for this many frames (impact pause)
   collected: Set<string> // "<scene>:<tx>,<ty>" keys of pickups already grabbed
   particles: Particle[]

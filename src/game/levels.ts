@@ -155,76 +155,93 @@ export function buildDelve(): DelveLevel {
   }
 }
 
-// Procedurally generate a delve. Same dimensions as buildDelve() but with
-// alternating left/right platforms climbing toward a summit. Layout structure
-// is deterministic per (seed, tier); only x-positions and platform widths
-// jitter per seed. Tier 1 (hardmode) adds more enemies on top of tier 0.
+// Procedurally generate a delve as a horizontal sidescroll corridor. Width,
+// platform count, and enemy count all scale with the seed. The player spawns
+// at the left edge and traverses to the return portal at the right edge,
+// fighting through enemies and grabbing loot along the way.
 //
-// Reachability invariant: vertical gaps between consecutive platforms stay
-// within the player's double-jump range (~5 tiles), and side-alternation
-// caps horizontal travel to roughly half the map width. No graph search.
+// Tier 0 = normal; tier 1 = hardmode (more enemies, longer corridors).
+//
+// No reachability graph — the floor is continuous so the level is trivially
+// completable on foot. Platforms add verticality + cell rewards but aren't
+// required for traversal.
 export function generateDelve(seed: number, tier = 0): DelveLevel {
   const rng = seedRng(seed)
-  const W = 24,
-    H = 30
+
+  // Width varies per seed; tier 1 stretches the corridor for longer runs.
+  const W = randInt(rng, 40, 70) + tier * 8
+  const H = 18
+
   const m: TileChar[][] = Array.from({ length: H }, () => Array<TileChar>(W).fill(" "))
 
   for (let x = 0; x < W; x++) {
-    m[H - 1]![x] = "#"
     m[0]![x] = "#"
+    m[H - 1]![x] = "#"
   }
   for (let y = 0; y < H; y++) {
     m[y]![0] = "#"
     m[y]![W - 1] = "#"
   }
 
-  // Climbing platform tower. Y values are roughly 3 apart with a ±1 jitter so
-  // back-to-back layouts don't all line up. The summit (top platform) is
-  // always the highest reachable spot — the big collectible lives there.
-  const baseYs = [26, 23, 20, 17, 13, 9, 5]
-  type Plat = { x: number; y: number; w: number }
-  const plats: Plat[] = baseYs.map((by, z) => {
-    const isLeft = z % 2 === 0
-    const len = randInt(rng, 3, 5)
-    const minX = isLeft ? 2 : 13
-    const maxX = isLeft ? Math.min(8, W - len - 2) : W - len - 2
-    const x = randInt(rng, minX, maxX)
-    const y = Math.max(2, Math.min(H - 4, by + randInt(rng, -1, 1)))
-    for (let i = 0; i < len; i++) m[y]![x + i] = "="
-    return { x, y, w: len }
-  })
+  // Platform count scales with width: roughly 1 platform per 6-9 tiles.
+  const platMin = Math.max(4, Math.floor(W / 9))
+  const platMax = Math.max(platMin + 2, Math.floor(W / 5))
+  const platCount = randInt(rng, platMin, platMax)
 
-  // Cells on most platforms (60% rate). Summit always carries the cache `C`.
-  for (let i = 0; i < plats.length - 1; i++) {
+  type Plat = { x: number; y: number; w: number }
+  const plats: Plat[] = []
+  for (let i = 0; i < platCount; i++) {
+    const len = randInt(rng, 3, 6)
+    const x = randInt(rng, 3, W - len - 3)
+    const y = randInt(rng, 4, H - 5)
+    plats.push({ x, y, w: len })
+    for (let j = 0; j < len; j++) m[y]![x + j] = "="
+  }
+
+  // Cells on ~60% of platforms — overlap with later-placed platforms is fine,
+  // they just overwrite each other and we don't bother with collision checks.
+  for (const p of plats) {
     if (chance(rng, 0.6)) {
-      const p = plats[i]!
       m[p.y - 1]![p.x + Math.floor(p.w / 2)] = "c"
     }
   }
-  const summit = plats[plats.length - 1]!
-  m[summit.y - 1]![summit.x + Math.floor(summit.w / 2)] = "C"
 
-  // Enemies: 3 base, +1 per tier. Spread across non-summit platforms so the
-  // climb stays contested but the cache isn't always camped.
-  const enemyCount = 3 + tier
-  const enemyPool = plats.slice(0, -1)
+  // Big cache + return portal anchored at the far end so the player has to
+  // traverse the whole corridor.
+  m[H - 2]![W - 5] = "C"
+  m[H - 2]![W - 3] = "r"
+
+  // Enemy count scales with width and tier. Half spawn on platforms, half on
+  // the floor — ghosts pass through walls anyway, so floor placement just
+  // means they start at ground level.
+  const enemyMin = Math.max(3, Math.floor(W / 14))
+  const enemyMax = Math.max(enemyMin + 2, Math.floor(W / 8))
+  const enemyCount = randInt(rng, enemyMin, enemyMax) + tier * 2
   const enemySpawns: EnemySpawn[] = []
   for (let i = 0; i < enemyCount; i++) {
-    const p = enemyPool[randInt(rng, 0, enemyPool.length - 1)]!
-    enemySpawns.push({
-      type: "ghost",
-      x: (p.x + Math.floor(p.w / 2)) * TILE_SIZE,
-      y: (p.y - 1) * TILE_SIZE,
-    })
+    if (plats.length > 0 && chance(rng, 0.5)) {
+      const p = plats[randInt(rng, 0, plats.length - 1)]!
+      enemySpawns.push({
+        type: "ghost",
+        x: (p.x + Math.floor(p.w / 2)) * TILE_SIZE,
+        y: (p.y - 1) * TILE_SIZE,
+      })
+    } else {
+      // Floor placement, kept clear of spawn (left) and exit (right) zones.
+      const ex = randInt(rng, 8, W - 8)
+      enemySpawns.push({
+        type: "ghost",
+        x: ex * TILE_SIZE,
+        y: (H - 3) * TILE_SIZE,
+      })
+    }
   }
-
-  m[H - 2]![2] = "r"
 
   return {
     map: m,
     W,
     H,
-    spawn: { x: 4 * TILE_SIZE, y: (H - 3) * TILE_SIZE },
+    spawn: { x: 3 * TILE_SIZE, y: (H - 3) * TILE_SIZE },
     theme: "delve",
     enemySpawns,
     seed,

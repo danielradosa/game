@@ -360,6 +360,26 @@ function drawEntities(ctx: Ctx, s: GameState): void {
         ctx.font = "12px sans-serif"
         ctx.textAlign = "center"
         ctx.fillText("[E] Surface", cx, y - 8)
+      } else if (c === "X") {
+        // Sealed portal — visible rubble in the spot where the rift used to be.
+        const cx = x + TILE_SIZE / 2,
+          cy = y + TILE_SIZE / 2
+        ctx.save()
+        ctx.fillStyle = "#1a1015"
+        ctx.beginPath()
+        ctx.ellipse(cx, cy + 6, 16, 8, 0, 0, Math.PI * 2)
+        ctx.fill()
+        ctx.fillStyle = "#3a2530"
+        ctx.fillRect(cx - 10, cy - 4, 7, 9)
+        ctx.fillRect(cx - 1, cy - 8, 8, 11)
+        ctx.fillRect(cx + 6, cy - 2, 5, 7)
+        ctx.fillStyle = "rgba(120,60,160,0.4)"
+        ctx.fillRect(cx - 2, cy - 4, 3, 5)
+        ctx.restore()
+        ctx.fillStyle = "rgba(180,140,180,0.5)"
+        ctx.font = "10px sans-serif"
+        ctx.textAlign = "center"
+        ctx.fillText("sealed", cx, y - 4)
       } else if (c === "n") {
         const cx = x + TILE_SIZE / 2,
           by = y + TILE_SIZE - 4
