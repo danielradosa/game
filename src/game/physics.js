@@ -6,6 +6,21 @@ import { ZONES } from './data';
 import { isSolid, isPlat } from './levels';
 import { playSnd } from './audio';
 
+// ===== Warframe-style parkour tuning =====
+const BULLET_VX = 11.5;        // bullet jump horizontal speed
+const BULLET_VY = -11.5;       // bullet jump vertical speed
+const SLIDE_FRICTION = 0.965;  // very low decay during slide
+const SLIDE_BOOST = 1.35;      // entry speed boost
+const SLIDE_MIN_SPEED = 1.5;   // below this, slide ends
+const SLIDE_ENTER_SPEED = 2.5; // need this much speed to start sliding
+const ROLL_FRAMES = 6;
+const ROLL_SPEED = 11;
+const ROLL_COOL = 18;
+const ROLL_IFRAMES = 8;
+const AIM_GLIDE_DUR = 60;      // ~1 second @ 60fps
+const AIM_GLIDE_GRAV = 0.10;
+const AIM_GLIDE_MAX = 1.5;
+
 export function addParticles(s, x, y, n, color, scale) {
   for (let i = 0; i < n; i++) {
     const a = Math.random() * Math.PI * 2;
@@ -22,64 +37,145 @@ export function stepGame(s, inp, ch, cb, dt) {
   s.time += dt;
   const p = s.p, lv = s.level, map = lv.map;
 
+  // ---- horizontal direction intent ----
   let dir = 0;
   if (inp.left) dir -= 1; if (inp.right) dir += 1;
   if (dir !== 0) {
     p.facing = dir;
     if (!s.hasMoved) { s.hasMoved = true; cb.grantAch('a1'); }
   }
-  if (p.dashFrames <= 0) {
-    p.vx += dir * MA;
-    if (dir === 0) p.vx *= MF;
-    if (!(Math.abs(p.vx) > MR && (dir === 0 || Math.sign(p.vx) !== dir))) {
-      p.vx = Math.max(-MR, Math.min(MR, p.vx));
+
+  // ---- slide state (hold S while running on ground) ----
+  const wantsSlide = inp.down && p.onGround && Math.abs(p.vx) > SLIDE_ENTER_SPEED;
+  if (wantsSlide && !p.sliding && p.dashFrames <= 0) {
+    p.sliding = true;
+    p.slideFrames = 0;
+    p.vx *= SLIDE_BOOST;
+    addParticles(s, p.x + PW / 2, p.y + PH, 8, DUST, 1.2);
+    playSnd('dash');
+  }
+  if (p.sliding) {
+    p.slideFrames++;
+    if (!inp.down || !p.onGround || Math.abs(p.vx) < SLIDE_MIN_SPEED) {
+      p.sliding = false;
     }
   }
 
+  // ---- horizontal acceleration ----
+  if (p.dashFrames <= 0 && !p.wallLatched) {
+    if (p.sliding) {
+      p.vx *= SLIDE_FRICTION;
+      p.vx += dir * MA * 0.25;     // tiny steering during slide
+    } else {
+      p.vx += dir * MA;
+      if (dir === 0) p.vx *= MF;
+      const overspeed = Math.abs(p.vx) > MR && (dir === 0 || Math.sign(p.vx) !== dir);
+      if (!overspeed) p.vx = Math.max(-MR, Math.min(MR, p.vx));
+    }
+  }
+
+  // ---- jump / bullet jump (with coyote + buffer) ----
   if (inp.jumpEdge) { p.jbuf = JB; inp.jumpEdge = false; }
   p.jbuf = Math.max(0, p.jbuf - 1);
   p.coyote = Math.max(0, p.coyote - 1);
 
-  if (p.jbuf > 0 && (p.coyote > 0 || p.jumpsLeft > 0 || p.wallDir !== 0)) {
-    if (p.coyote > 0) { p.vy = JV; p.coyote = 0; p.jumpsLeft = 1; playSnd('jump'); }
-    else if (p.wallDir !== 0) { p.vy = JV * 0.92; p.vx = -p.wallDir * MR * 1.1; p.jumpsLeft = 1; playSnd('jump'); }
-    else {
+  let justBulletJumped = false;
+  const groundedish = p.onGround || p.coyote > 0;
+
+  if (p.jbuf > 0 && groundedish && (inp.down || p.sliding)) {
+    // BULLET JUMP — explosive 45° launch in facing direction
+    p.vx = Math.sign(p.vx || p.facing) * Math.max(BULLET_VX, Math.abs(p.vx));
+    if (p.vx === 0) p.vx = BULLET_VX * p.facing;
+    p.vy = BULLET_VY;
+    p.jbuf = 0;
+    p.coyote = 0;
+    p.sliding = false;
+    p.jumpsLeft = 1;            // can still double jump after
+    p.airDashUsed = false;
+    p.aimGlideUsed = false;
+    p.wallLatched = false;
+    p.squash = 0.6;
+    justBulletJumped = true;
+    addParticles(s, p.x + PW / 2, p.y + PH, 18, ch.accent, 2.6);
+    playSnd('doublejump');
+  } else if (p.jbuf > 0 && (p.coyote > 0 || p.jumpsLeft > 0 || p.wallDir !== 0 || p.wallLatched)) {
+    if (p.coyote > 0) {
+      p.vy = JV; p.coyote = 0; p.jumpsLeft = 1;
+      playSnd('jump');
+    } else if (p.wallDir !== 0 || p.wallLatched) {
+      const wd = p.wallDir !== 0 ? p.wallDir : (p.facing > 0 ? 1 : -1);
+      p.vy = JV * 0.94;
+      p.vx = -wd * MR * 1.15;
+      p.jumpsLeft = 1;
+      p.airDashUsed = false;     // wall jump refreshes air abilities
+      p.aimGlideUsed = false;
+      p.wallLatched = false;
+      playSnd('jump');
+    } else {
       p.vy = DJV; p.jumpsLeft -= 1;
       addParticles(s, p.x + PW / 2, p.y + PH, 12, ch.accent, 2);
       playSnd('doublejump');
       if (!s.hasJumped) { s.hasJumped = true; cb.grantAch('a2'); }
     }
-    p.jbuf = 0; p.squash = 0.7;
+    p.jbuf = 0;
+    p.squash = 0.7;
   }
-  if (!inp.jump && p.vy < -3) p.vy *= JUMP_CUT;
 
+  // variable jump cut (skip for bullet jump — full commit)
+  if (!justBulletJumped && !inp.jump && p.vy < -3) p.vy *= JUMP_CUT;
+
+  // ---- dash (ROLL on ground / AIR DASH in air) ----
   if (inp.dashEdge) {
     inp.dashEdge = false;
-    if (p.dashCool <= 0 && p.dashFrames <= 0) {
-      let dx = 0, dy = 0;
-      if (inp.left) dx -= 1; if (inp.right) dx += 1;
-      if (inp.up) dy -= 1; if (inp.down) dy += 1;
-      if (dx === 0 && dy === 0) dx = p.facing;
-      const len = Math.hypot(dx, dy) || 1;
-      p.dashFrames = DF; p.dashCool = DC;
-      p.dashDx = dx / len; p.dashDy = dy / len;
-      if (dx !== 0) p.facing = dx > 0 ? 1 : -1;
-      addParticles(s, p.x + PW / 2, p.y + PH / 2, 18, ch.accent, 2.4);
-      playSnd('dash');
-      if (!s.hasDashed) { s.hasDashed = true; cb.grantAch('a3'); }
+    if (p.dashCool <= 0 && p.dashFrames <= 0 && !p.wallLatched) {
+      if (p.onGround) {
+        // ROLL — short horizontal evasive hop with i-frames
+        p.dashFrames = ROLL_FRAMES;
+        p.dashCool = ROLL_COOL;
+        p.dashDx = dir !== 0 ? dir : p.facing;
+        p.dashDy = 0;
+        p.iframes = ROLL_IFRAMES;
+        if (p.dashDx !== 0) p.facing = p.dashDx > 0 ? 1 : -1;
+        addParticles(s, p.x + PW / 2, p.y + PH, 12, ch.accent, 1.8);
+        playSnd('dash');
+        if (!s.hasDashed) { s.hasDashed = true; cb.grantAch('a3'); }
+      } else if (!p.airDashUsed) {
+        // AIR DASH — 8-directional, 1 charge per airborne sequence
+        let dx = 0, dy = 0;
+        if (inp.left) dx -= 1; if (inp.right) dx += 1;
+        if (inp.up) dy -= 1; if (inp.down) dy += 1;
+        if (dx === 0 && dy === 0) dx = p.facing;
+        const len = Math.hypot(dx, dy) || 1;
+        p.dashFrames = DF;
+        p.dashCool = DC;
+        p.dashDx = dx / len;
+        p.dashDy = dy / len;
+        p.airDashUsed = true;
+        if (dx !== 0) p.facing = dx > 0 ? 1 : -1;
+        addParticles(s, p.x + PW / 2, p.y + PH / 2, 18, ch.accent, 2.4);
+        playSnd('dash');
+        if (!s.hasDashed) { s.hasDashed = true; cb.grantAch('a3'); }
+        p.aimGlideFrames = 0;       // dashing cancels active glide
+      }
     }
   }
   if (p.dashCool > 0) p.dashCool--;
+  if (p.iframes > 0) p.iframes--;
 
+  // ---- dash physics ----
   if (p.dashFrames > 0) {
-    p.vx = p.dashDx * DV;
-    p.vy = p.dashDy * DV;
+    if (p.onGround) {
+      p.vx = p.dashDx * ROLL_SPEED;
+      p.vy = 0;
+    } else {
+      p.vx = p.dashDx * DV;
+      p.vy = p.dashDy * DV;
+    }
     p.dashFrames--;
     if (s.time % 2 < 1) addParticles(s, p.x + PW / 2, p.y + PH / 2, 1, ch.accent, 1.5);
-  } else {
-    p.vy = Math.min(FM, p.vy + GRAV);
   }
 
+  // ---- horizontal collision (sets wallDir) ----
   p.x += p.vx;
   p.wallDir = 0;
   {
@@ -93,8 +189,60 @@ export function stepGame(s, inp, ch, cb, dt) {
       }
     }
   }
-  if (p.wallDir !== 0 && !p.onGround && p.vy > WS && p.dashFrames <= 0) p.vy = WS;
 
+  // ---- wall latch (hold X against wall in air) ----
+  const pressingIntoWall = (p.wallDir > 0 && inp.right) || (p.wallDir < 0 && inp.left);
+  const canLatch = p.wallDir !== 0 && !p.onGround && inp.dash && pressingIntoWall && p.dashFrames <= 0;
+  if (canLatch) {
+    if (!p.wallLatched) {
+      addParticles(s, p.x + (p.wallDir > 0 ? PW : 0), p.y + PH / 2, 6, DUST, 1.0);
+    }
+    p.wallLatched = true;
+    p.vy = 0;
+    p.vx = 0;
+    p.airDashUsed = false;        // wall latch refreshes EVERYTHING
+    p.aimGlideUsed = false;
+    p.aimGlideFrames = 0;
+    p.jumpsLeft = 2;
+    p.squash = 0.85;
+  } else {
+    p.wallLatched = false;
+  }
+
+  // ---- aim glide (hold X in air, once per airborne sequence) ----
+  const canStartGlide = inp.dash && !p.onGround && p.dashFrames <= 0 &&
+                        !p.wallLatched && !p.aimGlideUsed && p.aimGlideFrames <= 0;
+  if (canStartGlide) {
+    p.aimGlideFrames = AIM_GLIDE_DUR;
+    p.aimGlideUsed = true;
+    addParticles(s, p.x + PW / 2, p.y + PH, 4, ch.accent, 0.8);
+  }
+  if (p.aimGlideFrames > 0) {
+    if (!inp.dash || p.onGround || p.wallLatched || p.dashFrames > 0 || p.vy < -2) {
+      p.aimGlideFrames = 0;       // cancel on land/latch/dash/upward burst
+    } else {
+      p.aimGlideFrames--;
+      p.squash = 1.05;            // slight stretch while gliding
+    }
+  }
+
+  // ---- gravity (state-modulated) ----
+  if (p.dashFrames > 0) {
+    // dashing — vy controlled
+  } else if (p.wallLatched) {
+    // no gravity while latched
+  } else if (p.aimGlideFrames > 0) {
+    p.vy = Math.min(AIM_GLIDE_MAX, p.vy + AIM_GLIDE_GRAV);
+  } else {
+    p.vy = Math.min(FM, p.vy + GRAV);
+  }
+
+  // ---- wall slide (only when not latched and falling fast) ----
+  if (p.wallDir !== 0 && !p.onGround && p.vy > WS && p.dashFrames <= 0 && !p.wallLatched) {
+    p.vy = WS;
+  }
+
+  // ---- vertical collision ----
   p.prevY = p.y;
   p.y += p.vy;
   {
@@ -113,6 +261,7 @@ export function stepGame(s, inp, ch, cb, dt) {
     }
   }
 
+  // ---- ground probe (single source of truth) ----
   const wasOnGround = p.onGround;
   p.onGround = false;
   {
@@ -137,7 +286,13 @@ export function stepGame(s, inp, ch, cb, dt) {
       if (fall > 12) s.cam.shake = Math.min(8, fall * 0.4);
       playSnd('land');
     }
-    p.jumpsLeft = 2; p.coyote = CY; p.peakFall = 0;
+    // landing refreshes everything
+    p.jumpsLeft = 2;
+    p.coyote = CY;
+    p.peakFall = 0;
+    p.airDashUsed = false;
+    p.aimGlideUsed = false;
+    p.aimGlideFrames = 0;
     if (p.vy >= 0) {
       const probeTy = Math.floor((p.y + PH + 1) / T);
       p.y = probeTy * T - PH;
@@ -146,8 +301,10 @@ export function stepGame(s, inp, ch, cb, dt) {
   } else {
     p.peakFall = Math.max(p.peakFall, p.vy);
   }
+  if (p.sliding) p.squash = 0.55;       // visual: stay flat during slide
   p.squash += (1 - p.squash) * 0.18;
 
+  // ---- collectibles + portals ----
   {
     const left = Math.floor(p.x / T), right = Math.floor((p.x + PW - 1) / T);
     const top = Math.floor(p.y / T), bottom = Math.floor((p.y + PH - 1) / T);
@@ -179,6 +336,7 @@ export function stepGame(s, inp, ch, cb, dt) {
 
   inp.jumpEdge = false; inp.dashEdge = false;
 
+  // ---- camera ----
   const camTargetX = p.x + PW / 2 - 880 / 2;
   const camTargetY = p.y + PH / 2 - 520 / 2;
   s.cam.x += (camTargetX - s.cam.x) * 0.12;
@@ -211,6 +369,14 @@ export function makeInitialState(ow, dl, x, y, current, collected) {
       jumpsLeft: 2, coyote: 0, jbuf: 0,
       dashFrames: 0, dashCool: 0, dashDx: 1, dashDy: 0,
       facing: 1, anim: 0, squash: 1, prevY: y, peakFall: 0,
+      // Warframe-style state
+      airDashUsed: false,
+      aimGlideUsed: false,
+      aimGlideFrames: 0,
+      wallLatched: false,
+      sliding: false,
+      slideFrames: 0,
+      iframes: 0,
     },
     collected, particles: [], bgPart: [], time: 0,
     hasJumped: false, hasDashed: false, hasMoved: false,
