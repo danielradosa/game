@@ -27,9 +27,9 @@ export const SOUND_VOLUME = {
   click: 0.3,
 };
 
-let _ac = null;
+let _ac: any = null;
 export let muted = false;
-export function setMuted(v) {
+export function setMuted(v: any) {
   muted = v;
 }
 
@@ -44,7 +44,7 @@ function ensureAC() {
   if (_ac.state === "suspended") _ac.resume();
   return _ac;
 }
-function sweep(ac, f1, f2, dur, type, vol) {
+function sweep(ac: any, f1: any, f2: any, dur: any, type: any, vol: any) {
   const o = ac.createOscillator(),
     g = ac.createGain();
   o.type = type;
@@ -56,7 +56,7 @@ function sweep(ac, f1, f2, dur, type, vol) {
   o.start();
   o.stop(ac.currentTime + dur);
 }
-function noise(ac, dur, vol, lpf = 1500) {
+function noise(ac: any, dur: any, vol: any, lpf = 1500) {
   const n = Math.max(1, Math.floor(ac.sampleRate * dur));
   const buf = ac.createBuffer(1, n, ac.sampleRate);
   const data = buf.getChannelData(0);
@@ -72,14 +72,14 @@ function noise(ac, dur, vol, lpf = 1500) {
   src.connect(filt).connect(g).connect(ac.destination);
   src.start();
 }
-function arp(ac, freqs, step, type, vol) {
+function arp(ac: any, freqs: any, step: any, type: any, vol: any) {
   freqs.forEach((f, i) => setTimeout(() => sweep(ac, f, f, step, type, vol), i * step * 800));
 }
-function chord(ac, freqs, dur, type, vol) {
+function chord(ac: any, freqs: any, dur: any, type: any, vol: any) {
   freqs.forEach((f) => sweep(ac, f, f, dur, type, vol / freqs.length));
 }
 
-export function playSnd(name) {
+export function playSnd(name: any) {
   if (muted) return;
   if (SOUNDS[name]) {
     try {
