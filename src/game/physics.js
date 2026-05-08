@@ -1,24 +1,40 @@
 import {
-  T, PW, PH, GRAV, JV, DJV, MA, MF, MR, DV, DF, DC,
-  CY, JB, WS, FM, JUMP_CUT, DUST,
-} from './constants';
-import { ZONES } from './data';
-import { isSolid, isPlat } from './levels';
-import { playSnd } from './audio';
+  T,
+  PW,
+  PH,
+  GRAV,
+  JV,
+  DJV,
+  MA,
+  MF,
+  MR,
+  DV,
+  DF,
+  DC,
+  CY,
+  JB,
+  WS,
+  FM,
+  JUMP_CUT,
+  DUST,
+} from "./constants";
+import { ZONES } from "./data";
+import { isSolid, isPlat } from "./levels";
+import { playSnd } from "./audio";
 
 // ===== Warframe-style parkour tuning =====
-const BULLET_VX = 11.5;        // bullet jump horizontal speed
-const BULLET_VY = -11.5;       // bullet jump vertical speed
-const SLIDE_FRICTION = 0.965;  // very low decay during slide
-const SLIDE_BOOST = 1.35;      // entry speed boost
-const SLIDE_MIN_SPEED = 1.5;   // below this, slide ends
+const BULLET_VX = 11.5; // bullet jump horizontal speed
+const BULLET_VY = -11.5; // bullet jump vertical speed
+const SLIDE_FRICTION = 0.965; // very low decay during slide
+const SLIDE_BOOST = 1.35; // entry speed boost
+const SLIDE_MIN_SPEED = 1.5; // below this, slide ends
 const SLIDE_ENTER_SPEED = 2.5; // need this much speed to start sliding
 const ROLL_FRAMES = 6;
 const ROLL_SPEED = 11;
 const ROLL_COOL = 18;
 const ROLL_IFRAMES = 8;
-const AIM_GLIDE_DUR = 60;      // ~1 second @ 60fps
-const AIM_GLIDE_GRAV = 0.10;
+const AIM_GLIDE_DUR = 60; // ~1 second @ 60fps
+const AIM_GLIDE_GRAV = 0.1;
 const AIM_GLIDE_MAX = 1.5;
 
 export function addParticles(s, x, y, n, color, scale) {
@@ -26,23 +42,35 @@ export function addParticles(s, x, y, n, color, scale) {
     const a = Math.random() * Math.PI * 2;
     const sp = Math.random() * 3 * scale;
     s.particles.push({
-      x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 1,
-      life: 18 + Math.random() * 18, max: 36, color,
-      size: 1.5 + Math.random() * 2.5 * scale, g: 0.15,
+      x,
+      y,
+      vx: Math.cos(a) * sp,
+      vy: Math.sin(a) * sp - 1,
+      life: 18 + Math.random() * 18,
+      max: 36,
+      color,
+      size: 1.5 + Math.random() * 2.5 * scale,
+      g: 0.15,
     });
   }
 }
 
 export function stepGame(s, inp, ch, cb, dt) {
   s.time += dt;
-  const p = s.p, lv = s.level, map = lv.map;
+  const p = s.p,
+    lv = s.level,
+    map = lv.map;
 
   // ---- horizontal direction intent ----
   let dir = 0;
-  if (inp.left) dir -= 1; if (inp.right) dir += 1;
+  if (inp.left) dir -= 1;
+  if (inp.right) dir += 1;
   if (dir !== 0) {
     p.facing = dir;
-    if (!s.hasMoved) { s.hasMoved = true; cb.grantAch('a1'); }
+    if (!s.hasMoved) {
+      s.hasMoved = true;
+      cb.grantAch("a1");
+    }
   }
 
   // ---- slide state (hold S while running on ground) ----
@@ -52,7 +80,7 @@ export function stepGame(s, inp, ch, cb, dt) {
     p.slideFrames = 0;
     p.vx *= SLIDE_BOOST;
     addParticles(s, p.x + PW / 2, p.y + PH, 8, DUST, 1.2);
-    playSnd('dash');
+    playSnd("dash");
   }
   if (p.sliding) {
     p.slideFrames++;
@@ -65,7 +93,7 @@ export function stepGame(s, inp, ch, cb, dt) {
   if (p.dashFrames <= 0 && !p.wallLatched) {
     if (p.sliding) {
       p.vx *= SLIDE_FRICTION;
-      p.vx += dir * MA * 0.25;     // tiny steering during slide
+      p.vx += dir * MA * 0.25; // tiny steering during slide
     } else {
       p.vx += dir * MA;
       if (dir === 0) p.vx *= MF;
@@ -75,7 +103,10 @@ export function stepGame(s, inp, ch, cb, dt) {
   }
 
   // ---- jump / bullet jump (with coyote + buffer) ----
-  if (inp.jumpEdge) { p.jbuf = JB; inp.jumpEdge = false; }
+  if (inp.jumpEdge) {
+    p.jbuf = JB;
+    inp.jumpEdge = false;
+  }
   p.jbuf = Math.max(0, p.jbuf - 1);
   p.coyote = Math.max(0, p.coyote - 1);
 
@@ -90,32 +121,38 @@ export function stepGame(s, inp, ch, cb, dt) {
     p.jbuf = 0;
     p.coyote = 0;
     p.sliding = false;
-    p.jumpsLeft = 1;            // can still double jump after
+    p.jumpsLeft = 1; // can still double jump after
     p.airDashUsed = false;
     p.aimGlideUsed = false;
     p.wallLatched = false;
     p.squash = 0.6;
     justBulletJumped = true;
     addParticles(s, p.x + PW / 2, p.y + PH, 18, ch.accent, 2.6);
-    playSnd('doublejump');
+    playSnd("doublejump");
   } else if (p.jbuf > 0 && (p.coyote > 0 || p.jumpsLeft > 0 || p.wallDir !== 0 || p.wallLatched)) {
     if (p.coyote > 0) {
-      p.vy = JV; p.coyote = 0; p.jumpsLeft = 1;
-      playSnd('jump');
+      p.vy = JV;
+      p.coyote = 0;
+      p.jumpsLeft = 1;
+      playSnd("jump");
     } else if (p.wallDir !== 0 || p.wallLatched) {
-      const wd = p.wallDir !== 0 ? p.wallDir : (p.facing > 0 ? 1 : -1);
+      const wd = p.wallDir !== 0 ? p.wallDir : p.facing > 0 ? 1 : -1;
       p.vy = JV * 0.94;
       p.vx = -wd * MR * 1.15;
       p.jumpsLeft = 1;
-      p.airDashUsed = false;     // wall jump refreshes air abilities
+      p.airDashUsed = false; // wall jump refreshes air abilities
       p.aimGlideUsed = false;
       p.wallLatched = false;
-      playSnd('jump');
+      playSnd("jump");
     } else {
-      p.vy = DJV; p.jumpsLeft -= 1;
+      p.vy = DJV;
+      p.jumpsLeft -= 1;
       addParticles(s, p.x + PW / 2, p.y + PH, 12, ch.accent, 2);
-      playSnd('doublejump');
-      if (!s.hasJumped) { s.hasJumped = true; cb.grantAch('a2'); }
+      playSnd("doublejump");
+      if (!s.hasJumped) {
+        s.hasJumped = true;
+        cb.grantAch("a2");
+      }
     }
     p.jbuf = 0;
     p.squash = 0.7;
@@ -137,13 +174,19 @@ export function stepGame(s, inp, ch, cb, dt) {
         p.iframes = ROLL_IFRAMES;
         if (p.dashDx !== 0) p.facing = p.dashDx > 0 ? 1 : -1;
         addParticles(s, p.x + PW / 2, p.y + PH, 12, ch.accent, 1.8);
-        playSnd('dash');
-        if (!s.hasDashed) { s.hasDashed = true; cb.grantAch('a3'); }
+        playSnd("dash");
+        if (!s.hasDashed) {
+          s.hasDashed = true;
+          cb.grantAch("a3");
+        }
       } else if (!p.airDashUsed) {
         // AIR DASH — 8-directional, 1 charge per airborne sequence
-        let dx = 0, dy = 0;
-        if (inp.left) dx -= 1; if (inp.right) dx += 1;
-        if (inp.up) dy -= 1; if (inp.down) dy += 1;
+        let dx = 0,
+          dy = 0;
+        if (inp.left) dx -= 1;
+        if (inp.right) dx += 1;
+        if (inp.up) dy -= 1;
+        if (inp.down) dy += 1;
         if (dx === 0 && dy === 0) dx = p.facing;
         const len = Math.hypot(dx, dy) || 1;
         p.dashFrames = DF;
@@ -153,9 +196,12 @@ export function stepGame(s, inp, ch, cb, dt) {
         p.airDashUsed = true;
         if (dx !== 0) p.facing = dx > 0 ? 1 : -1;
         addParticles(s, p.x + PW / 2, p.y + PH / 2, 18, ch.accent, 2.4);
-        playSnd('dash');
-        if (!s.hasDashed) { s.hasDashed = true; cb.grantAch('a3'); }
-        p.aimGlideFrames = 0;       // dashing cancels active glide
+        playSnd("dash");
+        if (!s.hasDashed) {
+          s.hasDashed = true;
+          cb.grantAch("a3");
+        }
+        p.aimGlideFrames = 0; // dashing cancels active glide
       }
     }
   }
@@ -179,20 +225,29 @@ export function stepGame(s, inp, ch, cb, dt) {
   p.x += p.vx;
   p.wallDir = 0;
   {
-    const left = Math.floor(p.x / T), right = Math.floor((p.x + PW - 1) / T);
-    const top = Math.floor(p.y / T), bottom = Math.floor((p.y + PH - 1) / T);
-    for (let ty = top; ty <= bottom; ty++) for (let tx = left; tx <= right; tx++) {
-      if (isSolid(map[ty]?.[tx])) {
-        if (p.vx > 0) { p.x = tx * T - PW; p.wallDir = 1; }
-        else if (p.vx < 0) { p.x = (tx + 1) * T; p.wallDir = -1; }
-        p.vx = 0;
+    const left = Math.floor(p.x / T),
+      right = Math.floor((p.x + PW - 1) / T);
+    const top = Math.floor(p.y / T),
+      bottom = Math.floor((p.y + PH - 1) / T);
+    for (let ty = top; ty <= bottom; ty++)
+      for (let tx = left; tx <= right; tx++) {
+        if (isSolid(map[ty]?.[tx])) {
+          if (p.vx > 0) {
+            p.x = tx * T - PW;
+            p.wallDir = 1;
+          } else if (p.vx < 0) {
+            p.x = (tx + 1) * T;
+            p.wallDir = -1;
+          }
+          p.vx = 0;
+        }
       }
-    }
   }
 
   // ---- wall latch (hold X against wall in air) ----
   const pressingIntoWall = (p.wallDir > 0 && inp.right) || (p.wallDir < 0 && inp.left);
-  const canLatch = p.wallDir !== 0 && !p.onGround && inp.dash && pressingIntoWall && p.dashFrames <= 0;
+  const canLatch =
+    p.wallDir !== 0 && !p.onGround && inp.dash && pressingIntoWall && p.dashFrames <= 0;
   if (canLatch) {
     if (!p.wallLatched) {
       addParticles(s, p.x + (p.wallDir > 0 ? PW : 0), p.y + PH / 2, 6, DUST, 1.0);
@@ -200,7 +255,7 @@ export function stepGame(s, inp, ch, cb, dt) {
     p.wallLatched = true;
     p.vy = 0;
     p.vx = 0;
-    p.airDashUsed = false;        // wall latch refreshes EVERYTHING
+    p.airDashUsed = false; // wall latch refreshes EVERYTHING
     p.aimGlideUsed = false;
     p.aimGlideFrames = 0;
     p.jumpsLeft = 2;
@@ -210,8 +265,13 @@ export function stepGame(s, inp, ch, cb, dt) {
   }
 
   // ---- aim glide (hold X in air, once per airborne sequence) ----
-  const canStartGlide = inp.dash && !p.onGround && p.dashFrames <= 0 &&
-                        !p.wallLatched && !p.aimGlideUsed && p.aimGlideFrames <= 0;
+  const canStartGlide =
+    inp.dash &&
+    !p.onGround &&
+    p.dashFrames <= 0 &&
+    !p.wallLatched &&
+    !p.aimGlideUsed &&
+    p.aimGlideFrames <= 0;
   if (canStartGlide) {
     p.aimGlideFrames = AIM_GLIDE_DUR;
     p.aimGlideUsed = true;
@@ -219,10 +279,10 @@ export function stepGame(s, inp, ch, cb, dt) {
   }
   if (p.aimGlideFrames > 0) {
     if (!inp.dash || p.onGround || p.wallLatched || p.dashFrames > 0 || p.vy < -2) {
-      p.aimGlideFrames = 0;       // cancel on land/latch/dash/upward burst
+      p.aimGlideFrames = 0; // cancel on land/latch/dash/upward burst
     } else {
       p.aimGlideFrames--;
-      p.squash = 1.05;            // slight stretch while gliding
+      p.squash = 1.05; // slight stretch while gliding
     }
   }
 
@@ -246,34 +306,50 @@ export function stepGame(s, inp, ch, cb, dt) {
   p.prevY = p.y;
   p.y += p.vy;
   {
-    const left = Math.floor(p.x / T), right = Math.floor((p.x + PW - 1) / T);
-    const top = Math.floor(p.y / T), bottom = Math.floor((p.y + PH - 1) / T);
-    for (let ty = top; ty <= bottom; ty++) for (let tx = left; tx <= right; tx++) {
-      const c = map[ty]?.[tx];
-      if (isSolid(c)) {
-        if (p.vy > 0) p.y = ty * T - PH;
-        else if (p.vy < 0) p.y = (ty + 1) * T;
-        p.vy = 0;
-      } else if (isPlat(c) && p.vy > 0 && !inp.down) {
-        const platY = ty * T;
-        if (p.prevY + PH <= platY + 1) { p.y = platY - PH; p.vy = 0; }
+    const left = Math.floor(p.x / T),
+      right = Math.floor((p.x + PW - 1) / T);
+    const top = Math.floor(p.y / T),
+      bottom = Math.floor((p.y + PH - 1) / T);
+    for (let ty = top; ty <= bottom; ty++)
+      for (let tx = left; tx <= right; tx++) {
+        const c = map[ty]?.[tx];
+        if (isSolid(c)) {
+          if (p.vy > 0) p.y = ty * T - PH;
+          else if (p.vy < 0) p.y = (ty + 1) * T;
+          p.vy = 0;
+        } else if (isPlat(c) && p.vy > 0 && !inp.down) {
+          const platY = ty * T;
+          if (p.prevY + PH <= platY + 1) {
+            p.y = platY - PH;
+            p.vy = 0;
+          }
+        }
       }
-    }
   }
 
   // ---- ground probe (single source of truth) ----
   const wasOnGround = p.onGround;
   p.onGround = false;
   {
-    const left = Math.floor(p.x / T), right = Math.floor((p.x + PW - 1) / T);
+    const left = Math.floor(p.x / T),
+      right = Math.floor((p.x + PW - 1) / T);
     const probeTy = Math.floor((p.y + PH + 1) / T);
     const platTop = probeTy * T;
     for (let tx = left; tx <= right; tx++) {
       const c = map[probeTy]?.[tx];
-      if (isSolid(c)) { p.onGround = true; break; }
-      if (isPlat(c) && !inp.down && p.vy >= 0 &&
-          (p.y + PH) >= platTop - 1 && (p.y + PH) <= platTop + 1) {
-        p.onGround = true; break;
+      if (isSolid(c)) {
+        p.onGround = true;
+        break;
+      }
+      if (
+        isPlat(c) &&
+        !inp.down &&
+        p.vy >= 0 &&
+        p.y + PH >= platTop - 1 &&
+        p.y + PH <= platTop + 1
+      ) {
+        p.onGround = true;
+        break;
       }
     }
   }
@@ -284,7 +360,7 @@ export function stepGame(s, inp, ch, cb, dt) {
       p.squash = Math.max(0.55, 1 - fall * 0.04);
       addParticles(s, p.x + PW / 2, p.y + PH, 3 + Math.floor(fall / 3), DUST, 1.0);
       if (fall > 12) s.cam.shake = Math.min(8, fall * 0.4);
-      playSnd('land');
+      playSnd("land");
     }
     // landing refreshes everything
     p.jumpsLeft = 2;
@@ -301,74 +377,115 @@ export function stepGame(s, inp, ch, cb, dt) {
   } else {
     p.peakFall = Math.max(p.peakFall, p.vy);
   }
-  if (p.sliding) p.squash = 0.55;       // visual: stay flat during slide
+  if (p.sliding) p.squash = 0.55; // visual: stay flat during slide
   p.squash += (1 - p.squash) * 0.18;
 
   // ---- collectibles + portals ----
   {
-    const left = Math.floor(p.x / T), right = Math.floor((p.x + PW - 1) / T);
-    const top = Math.floor(p.y / T), bottom = Math.floor((p.y + PH - 1) / T);
-    for (let ty = top; ty <= bottom; ty++) for (let tx = left; tx <= right; tx++) {
-      const c = map[ty]?.[tx];
-      const key = tx + ',' + ty;
-      if ((c === 'c' || c === 'C') && !s.collected.has(key)) {
-        s.collected.add(key);
-        const big = c === 'C';
-        addParticles(s, tx * T + T / 2, ty * T + T / 2, big ? 30 : 10, ch.accent, big ? 3 : 1.5);
-        cb.addMaterials(big ? 5 : 1);
-        cb.grantXP(big ? 80 : 15, big ? 'rare cache' : 'material');
-        playSnd(big ? 'big_collect' : 'collect');
-        if (big) cb.grantAch('a8');
-        if (cb.getMaterials() >= 5) cb.grantAch('a6');
+    const left = Math.floor(p.x / T),
+      right = Math.floor((p.x + PW - 1) / T);
+    const top = Math.floor(p.y / T),
+      bottom = Math.floor((p.y + PH - 1) / T);
+    for (let ty = top; ty <= bottom; ty++)
+      for (let tx = left; tx <= right; tx++) {
+        const c = map[ty]?.[tx];
+        const key = tx + "," + ty;
+        if ((c === "c" || c === "C") && !s.collected.has(key)) {
+          s.collected.add(key);
+          const big = c === "C";
+          addParticles(s, tx * T + T / 2, ty * T + T / 2, big ? 30 : 10, ch.accent, big ? 3 : 1.5);
+          cb.addMaterials(big ? 5 : 1);
+          cb.grantXP(big ? 80 : 15, big ? "rare cache" : "material");
+          playSnd(big ? "big_collect" : "collect");
+          if (big) cb.grantAch("a8");
+          if (cb.getMaterials() >= 5) cb.grantAch("a6");
+        }
+        if (c === "p" && inp.interactEdge) {
+          inp.interactEdge = false;
+          if (s.current === "over") cb.transitionToDelve();
+        }
+        if (c === "r" && inp.interactEdge) {
+          inp.interactEdge = false;
+          if (s.current === "delve") cb.transitionToOver();
+        }
       }
-      if (c === 'p' && inp.interactEdge) { inp.interactEdge = false; if (s.current === 'over') cb.transitionToDelve(); }
-      if (c === 'r' && inp.interactEdge) { inp.interactEdge = false; if (s.current === 'delve') cb.transitionToOver(); }
-    }
   }
   inp.interactEdge = false;
 
-  if (s.current === 'over') {
-    const cx = p.x + PW / 2, cy = p.y + PH / 2;
+  if (s.current === "over") {
+    const cx = p.x + PW / 2,
+      cy = p.y + PH / 2;
     for (const z of ZONES) {
       if (cx >= z.x && cx < z.x + z.w && cy >= z.y && cy < z.y + z.h) cb.discover(z.id);
     }
   }
 
-  inp.jumpEdge = false; inp.dashEdge = false;
+  inp.jumpEdge = false;
+  inp.dashEdge = false;
 
   // ---- camera ----
   const camTargetX = p.x + PW / 2 - 880 / 2;
   const camTargetY = p.y + PH / 2 - 520 / 2;
   s.cam.x += (camTargetX - s.cam.x) * 0.12;
   s.cam.y += (camTargetY - s.cam.y) * 0.12;
-  const lvW = lv.W * T, lvH = lv.H * T;
+  const lvW = lv.W * T,
+    lvH = lv.H * T;
   s.cam.x = Math.max(0, Math.min(lvW - 880, s.cam.x));
   s.cam.y = Math.max(0, Math.min(lvH - 520, s.cam.y));
   if (s.cam.shake > 0) s.cam.shake *= 0.85;
 
-  s.particles = s.particles.filter(pt => pt.life > 0);
-  for (const pt of s.particles) { pt.x += pt.vx; pt.y += pt.vy; pt.vy += pt.g || 0.1; pt.life--; }
+  s.particles = s.particles.filter((pt) => pt.life > 0);
+  for (const pt of s.particles) {
+    pt.x += pt.vx;
+    pt.y += pt.vy;
+    pt.vy += pt.g || 0.1;
+    pt.life--;
+  }
   for (const bp of s.bgPart) {
     bp.y += bp.sp;
     bp.x += Math.sin((s.time + bp.x) * 0.001) * 0.3;
-    if (bp.y > lvH) { bp.y = -10; bp.x = Math.random() * lvW; }
+    if (bp.y > lvH) {
+      bp.y = -10;
+      bp.x = Math.random() * lvW;
+    }
   }
   p.anim += Math.abs(p.vx) * 0.06 + 0.02;
 
-  if (p.y > (lv.H + 4) * T) { p.x = lv.spawn.x; p.y = lv.spawn.y; p.vx = 0; p.vy = 0; }
+  if (p.y > (lv.H + 4) * T) {
+    p.x = lv.spawn.x;
+    p.y = lv.spawn.y;
+    p.vx = 0;
+    p.vy = 0;
+  }
 }
 
 export function makeInitialState(ow, dl, x, y, current, collected) {
-  const lv = current === 'delve' ? dl : ow;
+  const lv = current === "delve" ? dl : ow;
   const st = {
-    ow, dl, current, level: lv,
+    ow,
+    dl,
+    current,
+    level: lv,
     cam: { x: 0, y: 0, shake: 0 },
     p: {
-      x, y, vx: 0, vy: 0,
-      onGround: false, wallDir: 0,
-      jumpsLeft: 2, coyote: 0, jbuf: 0,
-      dashFrames: 0, dashCool: 0, dashDx: 1, dashDy: 0,
-      facing: 1, anim: 0, squash: 1, prevY: y, peakFall: 0,
+      x,
+      y,
+      vx: 0,
+      vy: 0,
+      onGround: false,
+      wallDir: 0,
+      jumpsLeft: 2,
+      coyote: 0,
+      jbuf: 0,
+      dashFrames: 0,
+      dashCool: 0,
+      dashDx: 1,
+      dashDy: 0,
+      facing: 1,
+      anim: 0,
+      squash: 1,
+      prevY: y,
+      peakFall: 0,
       // Warframe-style state
       airDashUsed: false,
       aimGlideUsed: false,
@@ -378,13 +495,21 @@ export function makeInitialState(ow, dl, x, y, current, collected) {
       slideFrames: 0,
       iframes: 0,
     },
-    collected, particles: [], bgPart: [], time: 0,
-    hasJumped: false, hasDashed: false, hasMoved: false,
+    collected,
+    particles: [],
+    bgPart: [],
+    time: 0,
+    hasJumped: false,
+    hasDashed: false,
+    hasMoved: false,
   };
   for (let i = 0; i < 18; i++) {
     st.bgPart.push({
-      x: Math.random() * (lv.W * T), y: Math.random() * (lv.H * T),
-      s: 0.3 + Math.random() * 1.0, o: 0.15 + Math.random() * 0.25, sp: 0.15 + Math.random() * 0.3,
+      x: Math.random() * (lv.W * T),
+      y: Math.random() * (lv.H * T),
+      s: 0.3 + Math.random() * 1.0,
+      o: 0.15 + Math.random() * 0.25,
+      sp: 0.15 + Math.random() * 0.3,
     });
   }
   return st;

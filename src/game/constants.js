@@ -1,11 +1,21 @@
 export const T = 36;
-export const VW = 880, VH = 520;
+export const VW = 880,
+  VH = 520;
 export const GRAV = 0.46;
-export const JV = -10.8, DJV = -10.0;
-export const MA = 0.9, MF = 0.82, MR = 5.0;
-export const DV = 13.5, DF = 10, DC = 28;
-export const CY = 7, JB = 6, WS = 2.6, FM = 13;
+export const JV = -10.8,
+  DJV = -10.0;
+export const MA = 0.9,
+  MF = 0.82,
+  MR = 5.0;
+export const DV = 13.5,
+  DF = 10,
+  DC = 28;
+export const CY = 7,
+  JB = 6,
+  WS = 2.6,
+  FM = 13;
 export const JUMP_CUT = 0.5;
-export const PW = 22, PH = 32;
+export const PW = 22,
+  PH = 32;
 export const xpFor = (l) => Math.floor(80 + l * 28);
-export const DUST = '#cfaf87';
+export const DUST = "#cfaf87";

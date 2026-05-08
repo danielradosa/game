@@ -1,13 +1,19 @@
 {
   "name": "drift",
-  "private": true,
   "version": "0.1.0",
+  "private": true,
   "type": "module",
   "scripts": {
-    "dev": "vite --host",
-    "build": "vite build",
-    "preview": "vite preview"
-  },
+  "dev": "vite --host",
+  "build": "vite build",
+  "preview": "vite preview",
+
+  "lint": "oxlint .",
+  "lint:fix": "oxlint . --fix",
+
+  "format": "oxfmt . --write",
+  "format:check": "oxfmt ."
+},
   "dependencies": {
     "react": "^18.3.1",
     "react-dom": "^18.3.1"
@@ -15,6 +21,8 @@
   "devDependencies": {
     "@vitejs/plugin-react": "^4.3.1",
     "autoprefixer": "^10.4.19",
+    "oxc": "^1.0.1",
+    "oxlint": "^1.63.0",
     "postcss": "^8.4.39",
     "tailwindcss": "^3.4.4",
     "vite": "^5.3.3"
