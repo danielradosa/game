@@ -1,0 +1,212 @@
+import { useState } from 'react';
+import { ZONES, ACHS, SKINS, HAIRS, SHIRTS, PANTS, ACCS, PROPOSED_MODS } from '../game/data';
+import { xpFor } from '../game/constants';
+import { playSnd } from '../game/audio';
+import CharacterPreview from './CharacterPreview';
+
+export function MainMenu({ manifest, muted, onContinue, onNew, onLoad, onAbout, onToggleMute }) {
+  const hasSaves = manifest.length > 0;
+  return (
+    <div className="w-full h-full min-h-screen flex items-center justify-center" style={{ background: 'linear-gradient(180deg,#1a0e2a 0%,#3a2050 50%,#7a4080 100%)' }}>
+      <div className="text-center px-8">
+        <div className="text-7xl font-bold tracking-tight text-white mb-2" style={{ textShadow: '0 4px 20px rgba(255,180,120,0.5)' }}>Drift</div>
+        <div className="text-orange-200 text-lg mb-12 italic">explore at your pace · grind at your will</div>
+        <div className="flex flex-col gap-3 items-center">
+          {hasSaves && <button onClick={() => { playSnd('click'); onContinue(); }} className="bg-orange-300 hover:bg-orange-200 text-stone-900 font-semibold px-12 py-3 rounded-full text-lg transition">Continue</button>}
+          <button onClick={() => { playSnd('click'); onNew(); }} className={(hasSaves ? 'bg-stone-700 hover:bg-stone-600 text-stone-100' : 'bg-orange-300 hover:bg-orange-200 text-stone-900') + ' font-semibold px-12 py-3 rounded-full text-lg transition'}>New Journey</button>
+          {hasSaves && <button onClick={() => { playSnd('click'); onLoad(); }} className="text-purple-200 hover:text-white text-sm">Load Game ({manifest.length})</button>}
+          <button onClick={() => { playSnd('click'); onAbout(); }} className="text-purple-200 hover:text-white text-sm">About</button>
+          <button onClick={onToggleMute} className="text-purple-200 hover:text-white text-xs">{muted ? '🔇 Sound off (M)' : '🔊 Sound on (M)'}</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export function About({ onBack }) {
+  return (
+    <div className="w-full min-h-screen flex items-center justify-center p-8" style={{ background: '#1a0e2a' }}>
+      <div className="max-w-xl text-stone-200 space-y-4 text-sm leading-relaxed">
+        <h2 className="text-2xl font-bold text-orange-200">Drift</h2>
+        <p>A relaxing 2D platformer where exploration is its own reward. No timers, no quest pressure.</p>
+        <div className="bg-stone-800/50 p-4 rounded space-y-2">
+          <div><span className="text-orange-300">A / D</span> — move</div>
+          <div><span className="text-orange-300">W / Space</span> — jump (double in air)</div>
+          <div><span className="text-orange-300">Shift / X</span> — dash (8-directional, hold WASD)</div>
+          <div><span className="text-orange-300">S</span> — drop through platform</div>
+          <div><span className="text-orange-300">E</span> — interact</div>
+          <div><span className="text-orange-300">Tab</span> · inventory · <span className="text-orange-300">Esc</span> · pause · <span className="text-orange-300">M</span> · mute</div>
+        </div>
+        <button onClick={() => { playSnd('click'); onBack(); }} className="text-orange-200 hover:text-white">← Back</button>
+      </div>
+    </div>
+  );
+}
+
+export function LoadMenu({ manifest, onLoad, onDelete, onBack }) {
+  const [page, setPage] = useState(0);
+  const [confirmId, setConfirmId] = useState(null);
+  const PER_PAGE = 5;
+  const totalPages = Math.max(1, Math.ceil(manifest.length / PER_PAGE));
+  const items = manifest.slice(page * PER_PAGE, (page + 1) * PER_PAGE);
+  const fmtDate = (iso) => {
+    try { return new Date(iso).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }); }
+    catch { return iso; }
+  };
+  return (
+    <div className="w-full min-h-screen flex items-center justify-center p-6" style={{ background: 'linear-gradient(180deg,#1a0e2a,#3a2050)' }}>
+      <div className="bg-stone-900/70 backdrop-blur rounded-2xl p-8 max-w-2xl w-full shadow-2xl">
+        <div className="flex justify-between items-center mb-6">
+          <h2 className="text-2xl font-bold text-orange-200">Load Game</h2>
+          <button onClick={() => { playSnd('click'); onBack(); }} className="text-stone-400 hover:text-white text-sm">← Back</button>
+        </div>
+        {manifest.length === 0 && <div className="text-stone-400 text-center py-12">No saves yet.</div>}
+        <div className="space-y-2">
+          {items.map(s => (
+            <div key={s.id} className="bg-stone-800/60 rounded-lg p-4 flex items-center justify-between">
+              <div className="flex-1 min-w-0">
+                <div className="font-semibold text-white">{s.name} <span className="text-stone-400 font-normal">· Lv {s.level}</span></div>
+                <div className="text-xs text-stone-400">{s.where} · {s.discovered}/{ZONES.length} zones · {s.materials} materials</div>
+                <div className="text-xs text-stone-500 mt-0.5">{fmtDate(s.date)}</div>
+              </div>
+              <div className="flex gap-2 ml-4">
+                {confirmId === s.id ? (
+                  <>
+                    <button onClick={() => { playSnd('click'); onDelete(s.id); setConfirmId(null); }} className="bg-red-400 text-stone-900 px-3 py-1.5 rounded-md text-xs font-semibold">Confirm</button>
+                    <button onClick={() => setConfirmId(null)} className="text-stone-400 hover:text-white text-xs">Cancel</button>
+                  </>
+                ) : (
+                  <>
+                    <button onClick={() => { playSnd('click'); onLoad(s.id); }} className="bg-orange-300 text-stone-900 px-4 py-1.5 rounded-md text-xs font-semibold">Load</button>
+                    <button onClick={() => setConfirmId(s.id)} className="text-stone-400 hover:text-red-300 text-xs">Delete</button>
+                  </>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+        {totalPages > 1 && (
+          <div className="flex justify-between items-center mt-4 text-stone-300 text-sm">
+            <button disabled={page === 0} onClick={() => setPage(p => p - 1)} className="px-3 py-1 rounded bg-stone-800 disabled:opacity-30 hover:bg-stone-700">← Prev</button>
+            <div className="text-stone-400">Page {page + 1} of {totalPages}</div>
+            <button disabled={page >= totalPages - 1} onClick={() => setPage(p => p + 1)} className="px-3 py-1 rounded bg-stone-800 disabled:opacity-30 hover:bg-stone-700">Next →</button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function Swatches({ label, value, options, onChange }) {
+  return (
+    <div>
+      <label className="text-stone-300 text-xs uppercase tracking-wider">{label}</label>
+      <div className="flex gap-2 mt-1 flex-wrap">
+        {options.map(c => (
+          <button key={c} onClick={() => onChange(c)} className={'w-8 h-8 rounded-lg ring-2 transition ' + (value === c ? 'ring-orange-300 scale-110' : 'ring-transparent')} style={{ background: c }} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+export function CharacterCreator({ character, setCharacter, onPlay, onBack }) {
+  const upd = (k, v) => setCharacter(c => ({ ...c, [k]: v }));
+  return (
+    <div className="w-full min-h-screen flex items-center justify-center p-6" style={{ background: 'linear-gradient(180deg,#1a0e2a,#3a2050)' }}>
+      <div className="bg-stone-900/60 backdrop-blur rounded-2xl p-8 max-w-3xl w-full shadow-2xl">
+        <div className="text-2xl font-bold text-orange-200 mb-1">Customize</div>
+        <div className="text-stone-400 text-sm mb-6">Cosmetics only — never tied to stats.</div>
+        <div className="grid md:grid-cols-2 gap-8">
+          <div className="flex items-center justify-center">
+            <div className="w-64 h-80 rounded-xl flex items-center justify-center" style={{ background: 'radial-gradient(circle at 50% 30%, #5a3a8a, #1a0a2a)' }}>
+              <CharacterPreview ch={character} />
+            </div>
+          </div>
+          <div className="space-y-4">
+            <div>
+              <label className="text-stone-300 text-xs uppercase tracking-wider">Name</label>
+              <input value={character.name} onChange={e => upd('name', e.target.value.slice(0, 16))} className="w-full mt-1 bg-stone-800 text-white px-3 py-2 rounded-lg outline-none focus:ring-2 ring-orange-300" />
+            </div>
+            <Swatches label="Skin" value={character.skin} options={SKINS} onChange={v => upd('skin', v)} />
+            <Swatches label="Hair color" value={character.hair} options={HAIRS} onChange={v => upd('hair', v)} />
+            <div>
+              <label className="text-stone-300 text-xs uppercase tracking-wider">Hair style</label>
+              <div className="flex gap-2 mt-1">
+                {['short', 'med', 'long'].map(s => (
+                  <button key={s} onClick={() => upd('hairStyle', s)} className={'px-3 py-1.5 rounded-lg text-sm capitalize ' + (character.hairStyle === s ? 'bg-orange-300 text-stone-900' : 'bg-stone-700 text-stone-200')}>{s}</button>
+                ))}
+              </div>
+            </div>
+            <Swatches label="Shirt" value={character.shirt} options={SHIRTS} onChange={v => upd('shirt', v)} />
+            <Swatches label="Pants" value={character.pants} options={PANTS} onChange={v => upd('pants', v)} />
+            <Swatches label="Accent" value={character.accent} options={ACCS} onChange={v => upd('accent', v)} />
+          </div>
+        </div>
+        <div className="flex justify-between mt-8">
+          <button onClick={() => { playSnd('click'); onBack(); }} className="text-stone-400 hover:text-white text-sm">← Back</button>
+          <button onClick={() => { playSnd('click'); onPlay(); }} className="bg-orange-300 hover:bg-orange-200 text-stone-900 font-semibold px-10 py-2.5 rounded-full">Enter the world →</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export function InventoryPanel({ hud, character, onClose }) {
+  const xpPct = (hud.xp / xpFor(hud.level)) * 100;
+  const unlocked = ACHS.filter(a => hud.achievements.includes(a.id));
+  const locked = ACHS.filter(a => !hud.achievements.includes(a.id));
+  return (
+    <div className="absolute inset-0 bg-black/75 backdrop-blur-sm rounded-lg flex items-center justify-center p-4 overflow-auto">
+      <div className="bg-stone-900 rounded-xl p-6 max-w-2xl w-full max-h-full overflow-auto">
+        <div className="flex justify-between items-center mb-4">
+          <h2 className="text-2xl font-bold text-orange-200">{character.name}</h2>
+          <button onClick={onClose} className="text-stone-400 hover:text-white">✕</button>
+        </div>
+        <div className="grid md:grid-cols-2 gap-4 mb-6">
+          <div className="bg-stone-800/60 rounded-lg p-4">
+            <div className="text-stone-400 text-xs uppercase tracking-wider">Level</div>
+            <div className="text-3xl font-bold text-white">{hud.level} <span className="text-sm text-stone-500">/ 99</span></div>
+            <div className="w-full h-2 bg-stone-700 rounded-full overflow-hidden mt-2">
+              <div className="h-full bg-gradient-to-r from-orange-300 to-yellow-200" style={{ width: xpPct + '%' }} />
+            </div>
+            <div className="text-xs text-stone-500 mt-1">{hud.xp} / {xpFor(hud.level)} XP to next level</div>
+          </div>
+          <div className="bg-stone-800/60 rounded-lg p-4">
+            <div className="text-stone-400 text-xs uppercase tracking-wider">Inventory</div>
+            <div className="text-sm text-stone-200 mt-2 space-y-1">
+              <div className="flex justify-between"><span>Materials</span><span className="font-semibold text-yellow-200">{hud.materials}</span></div>
+              <div className="flex justify-between"><span>Areas Discovered</span><span className="font-semibold text-emerald-200">{hud.discovered.length} / {ZONES.length}</span></div>
+              <div className="flex justify-between"><span>Achievements</span><span className="font-semibold text-orange-200">{unlocked.length} / {ACHS.length}</span></div>
+            </div>
+          </div>
+        </div>
+        <div className="mb-6">
+          <h3 className="text-stone-300 font-semibold mb-2">Mods <span className="text-xs text-stone-500 font-normal">(unlocked at Lv 99)</span></h3>
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 opacity-60">
+            {PROPOSED_MODS.map(m => (
+              <div key={m.n} className="bg-stone-800/40 border border-stone-700 rounded p-2 text-xs">
+                <div className="text-stone-300 font-semibold">🔒 {m.n}</div>
+                <div className="text-stone-500">{m.d}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+        <div>
+          <h3 className="text-stone-300 font-semibold mb-2">Achievements</h3>
+          <div className="grid sm:grid-cols-2 gap-2">
+            {[...unlocked, ...locked].map(a => {
+              const u = hud.achievements.includes(a.id);
+              return (
+                <div key={a.id} className={'p-2 rounded border ' + (u ? 'bg-yellow-300/10 border-yellow-300/40' : 'bg-stone-800/40 border-stone-700')}>
+                  <div className={'text-sm font-semibold ' + (u ? 'text-yellow-200' : 'text-stone-500')}>{u ? '★' : '☆'} {a.name}</div>
+                  <div className="text-xs text-stone-400">{a.desc}</div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
