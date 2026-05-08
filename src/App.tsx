@@ -2,7 +2,8 @@ import { useState, useRef, useEffect, useCallback } from "react"
 import { TILE_SIZE, VIEWPORT_WIDTH, VIEWPORT_HEIGHT, xpForLevel } from "@/game/constants"
 import { ZONES, ACHIEVEMENTS, SKINS, HAIRS, SHIRTS, PANTS, ACCENTS, MODS } from "@/game/data"
 import type { AchievementId, ZoneId } from "@/game/data"
-import { buildOverworld, buildDelve } from "@/game/levels"
+import { buildOverworld, generateDelve } from "@/game/levels"
+import { freshSeed } from "@/game/rng"
 import {
   stepGame,
   makeInitialState,
@@ -151,6 +152,16 @@ export default function App() {
   const transitionToDelve = useCallback((): void => {
     const s = stateRef.current
     if (!s) return
+    // Regenerate the delve fresh on every entry — each portal trip is a new
+    // procedural layout. defeatedEnemies/delveCleared are scoped to a single
+    // delve session, so they reset; collected entries keyed under "delve:" are
+    // also stale (point at tiles that no longer exist) and get pruned.
+    s.dl = generateDelve(freshSeed(), 0)
+    s.defeatedEnemies = new Set<number>()
+    s.delveCleared = false
+    for (const k of Array.from(s.collected)) {
+      if (k.startsWith("delve:")) s.collected.delete(k)
+    }
     s.current = "delve"
     s.level = s.dl
     s.p.x = s.dl.spawn.x
@@ -159,10 +170,6 @@ export default function App() {
     s.p.vy = 0
     s.p.dashFrames = 0
     s.p.dashCool = 0
-    // Collected stars and defeated enemies persist across transitions for the
-    // duration of this run — re-entry brings non-defeated enemies back to
-    // their spawns, leaves cleared ones gone, and keeps the cleared flag so
-    // the portal stays unlocked.
     s.enemies = spawnEnemiesFrom(s.dl.enemySpawns, s.defeatedEnemies)
     s.p.hp = s.p.maxHp
     setHp(s.p.hp)
@@ -205,6 +212,8 @@ export default function App() {
       collected: Array.from(s.collected),
       defeatedEnemies: Array.from(s.defeatedEnemies),
       delveCleared: s.delveCleared,
+      delveSeed: s.dl.seed,
+      delveTier: s.dl.tier,
     }
     const meta = {
       id,
@@ -239,6 +248,8 @@ export default function App() {
       collected: Array.from(s.collected),
       defeatedEnemies: Array.from(s.defeatedEnemies),
       delveCleared: s.delveCleared,
+      delveSeed: s.dl.seed,
+      delveTier: s.dl.tier,
     }
     const meta = {
       id,
@@ -269,8 +280,11 @@ export default function App() {
   }, [scene, autosave])
 
   const startGameFresh = useCallback((): void => {
+    // Initial delve is generated fresh; transitionToDelve regenerates it on
+    // every portal entry, so this layout is only seen if the player saves
+    // and loads before ever entering a portal.
     const ow = buildOverworld(),
-      dl = buildDelve()
+      dl = generateDelve(freshSeed(), 0)
     stateRef.current = makeInitialState(ow, dl, ow.spawn.x, ow.spawn.y, "over", new Set<string>())
     setHud({
       level: 1,
@@ -297,13 +311,24 @@ export default function App() {
         pushNotif("Load failed", "xp")
         return
       }
-      const ow = buildOverworld(),
-        dl = buildDelve()
+      // Reproduce the saved delve from its seed/tier when present. Old saves
+      // predate procgen — fall back to a fresh seed; if the player was inside
+      // the delve when saving, snap them to the new layout's spawn so they
+      // don't end up clipped inside walls.
+      const hasDelveSeed = typeof data.delveSeed === "number"
+      const ow = buildOverworld()
+      const dl = generateDelve(
+        hasDelveSeed ? (data.delveSeed as number) : freshSeed(),
+        data.delveTier ?? 0,
+      )
+      const inDelve = data.pos.scene === "delve"
+      const startX = inDelve && !hasDelveSeed ? dl.spawn.x : data.pos.x
+      const startY = inDelve && !hasDelveSeed ? dl.spawn.y : data.pos.y
       stateRef.current = makeInitialState(
         ow,
         dl,
-        data.pos.x,
-        data.pos.y,
+        startX,
+        startY,
         data.pos.scene,
         new Set<string>(data.collected || []),
         new Set<number>(data.defeatedEnemies || []),

@@ -1,4 +1,5 @@
 import { TILE_SIZE } from "@/game/constants"
+import { chance, randInt, seedRng } from "@/game/rng"
 import type {
   DelveLevel,
   EnemySpawn,
@@ -149,6 +150,85 @@ export function buildDelve(): DelveLevel {
     spawn: { x: 4 * TILE_SIZE, y: (H - 3) * TILE_SIZE },
     theme: "delve",
     enemySpawns,
+    seed: 0,
+    tier: 0,
+  }
+}
+
+// Procedurally generate a delve. Same dimensions as buildDelve() but with
+// alternating left/right platforms climbing toward a summit. Layout structure
+// is deterministic per (seed, tier); only x-positions and platform widths
+// jitter per seed. Tier 1 (hardmode) adds more enemies on top of tier 0.
+//
+// Reachability invariant: vertical gaps between consecutive platforms stay
+// within the player's double-jump range (~5 tiles), and side-alternation
+// caps horizontal travel to roughly half the map width. No graph search.
+export function generateDelve(seed: number, tier = 0): DelveLevel {
+  const rng = seedRng(seed)
+  const W = 24,
+    H = 30
+  const m: TileChar[][] = Array.from({ length: H }, () => Array<TileChar>(W).fill(" "))
+
+  for (let x = 0; x < W; x++) {
+    m[H - 1]![x] = "#"
+    m[0]![x] = "#"
+  }
+  for (let y = 0; y < H; y++) {
+    m[y]![0] = "#"
+    m[y]![W - 1] = "#"
+  }
+
+  // Climbing platform tower. Y values are roughly 3 apart with a ±1 jitter so
+  // back-to-back layouts don't all line up. The summit (top platform) is
+  // always the highest reachable spot — the big collectible lives there.
+  const baseYs = [26, 23, 20, 17, 13, 9, 5]
+  type Plat = { x: number; y: number; w: number }
+  const plats: Plat[] = baseYs.map((by, z) => {
+    const isLeft = z % 2 === 0
+    const len = randInt(rng, 3, 5)
+    const minX = isLeft ? 2 : 13
+    const maxX = isLeft ? Math.min(8, W - len - 2) : W - len - 2
+    const x = randInt(rng, minX, maxX)
+    const y = Math.max(2, Math.min(H - 4, by + randInt(rng, -1, 1)))
+    for (let i = 0; i < len; i++) m[y]![x + i] = "="
+    return { x, y, w: len }
+  })
+
+  // Cells on most platforms (60% rate). Summit always carries the cache `C`.
+  for (let i = 0; i < plats.length - 1; i++) {
+    if (chance(rng, 0.6)) {
+      const p = plats[i]!
+      m[p.y - 1]![p.x + Math.floor(p.w / 2)] = "c"
+    }
+  }
+  const summit = plats[plats.length - 1]!
+  m[summit.y - 1]![summit.x + Math.floor(summit.w / 2)] = "C"
+
+  // Enemies: 3 base, +1 per tier. Spread across non-summit platforms so the
+  // climb stays contested but the cache isn't always camped.
+  const enemyCount = 3 + tier
+  const enemyPool = plats.slice(0, -1)
+  const enemySpawns: EnemySpawn[] = []
+  for (let i = 0; i < enemyCount; i++) {
+    const p = enemyPool[randInt(rng, 0, enemyPool.length - 1)]!
+    enemySpawns.push({
+      type: "ghost",
+      x: (p.x + Math.floor(p.w / 2)) * TILE_SIZE,
+      y: (p.y - 1) * TILE_SIZE,
+    })
+  }
+
+  m[H - 2]![2] = "r"
+
+  return {
+    map: m,
+    W,
+    H,
+    spawn: { x: 4 * TILE_SIZE, y: (H - 3) * TILE_SIZE },
+    theme: "delve",
+    enemySpawns,
+    seed,
+    tier,
   }
 }
 

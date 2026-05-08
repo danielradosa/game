@@ -32,6 +32,10 @@ export interface SaveData {
   collected: string[] // "<scene>:<tx>,<ty>" keys; rehydrated into a Set on load
   defeatedEnemies: number[] // delve spawn indices defeated this run
   delveCleared: boolean
+  // Procedural delve identity. Optional for backwards compat with saves
+  // created before procgen landed — those default to a fresh seed on load.
+  delveSeed?: number
+  delveTier?: number
 }
 
 // One row in the load-menu list. Cheap to enumerate.

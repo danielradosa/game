@@ -67,6 +67,11 @@ export interface EnemySpawn {
 export interface DelveLevel extends BaseLevel {
   theme: "delve"
   enemySpawns: EnemySpawn[]
+  // Seed and tier identify a procedural delve instance. Persisted in saves so
+  // reloading a delve-mid-session reproduces the same layout. tier=0 is normal,
+  // tier=1 is hardmode (more enemies, tougher spawns).
+  seed: number
+  tier: number
 }
 
 export type Level = OverworldLevel | DelveLevel
