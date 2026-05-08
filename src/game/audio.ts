@@ -1,6 +1,14 @@
+import type {
+  OscType,
+  SoundMap,
+  SoundName,
+  VolumeMap,
+} from "./types/audio";
+
 // Replace any procedural sound with a real file:
 // SOUNDS.jump = new Audio('/sfx/jump.mp3');
-export const SOUNDS = {
+
+export const SOUNDS: SoundMap = {
   jump: null,
   doublejump: null,
   dash: null,
@@ -13,7 +21,8 @@ export const SOUNDS = {
   portal: null,
   click: null,
 };
-export const SOUND_VOLUME = {
+
+export const SOUND_VOLUME: VolumeMap = {
   jump: 0.35,
   doublejump: 0.35,
   dash: 0.35,
@@ -27,105 +36,246 @@ export const SOUND_VOLUME = {
   click: 0.3,
 };
 
-let _ac: any = null;
+let _ac: AudioContext | null = null;
+
 export let muted = false;
-export function setMuted(v: any) {
+
+export function setMuted(v: boolean) {
   muted = v;
 }
 
-function ensureAC() {
+function ensureAC(): AudioContext | null {
   if (!_ac) {
     try {
-      _ac = new (window.AudioContext || window.webkitAudioContext)();
+      const AudioContextClass =
+        window.AudioContext ||
+        (
+          window as typeof window & {
+            webkitAudioContext?: typeof AudioContext;
+          }
+        ).webkitAudioContext;
+
+      if (!AudioContextClass) return null;
+
+      _ac = new AudioContextClass();
     } catch {
       return null;
     }
   }
-  if (_ac.state === "suspended") _ac.resume();
+
+  if (_ac.state === "suspended") {
+    void _ac.resume();
+  }
+
   return _ac;
 }
-function sweep(ac: any, f1: any, f2: any, dur: any, type: any, vol: any) {
-  const o = ac.createOscillator(),
-    g = ac.createGain();
-  o.type = type;
-  o.frequency.setValueAtTime(f1, ac.currentTime);
-  o.frequency.exponentialRampToValueAtTime(Math.max(0.001, f2), ac.currentTime + dur);
-  g.gain.setValueAtTime(vol, ac.currentTime);
-  g.gain.exponentialRampToValueAtTime(0.0001, ac.currentTime + dur);
-  o.connect(g).connect(ac.destination);
-  o.start();
-  o.stop(ac.currentTime + dur);
-}
-function noise(ac: any, dur: any, vol: any, lpf = 1500) {
-  const n = Math.max(1, Math.floor(ac.sampleRate * dur));
-  const buf = ac.createBuffer(1, n, ac.sampleRate);
-  const data = buf.getChannelData(0);
-  for (let i = 0; i < n; i++) data[i] = Math.random() * 2 - 1;
-  const src = ac.createBufferSource();
-  src.buffer = buf;
-  const filt = ac.createBiquadFilter();
-  filt.type = "lowpass";
-  filt.frequency.value = lpf;
-  const g = ac.createGain();
-  g.gain.setValueAtTime(vol, ac.currentTime);
-  g.gain.exponentialRampToValueAtTime(0.0001, ac.currentTime + dur);
-  src.connect(filt).connect(g).connect(ac.destination);
-  src.start();
-}
-function arp(ac: any, freqs: any, step: any, type: any, vol: any) {
-  freqs.forEach((f, i) => setTimeout(() => sweep(ac, f, f, step, type, vol), i * step * 800));
-}
-function chord(ac: any, freqs: any, dur: any, type: any, vol: any) {
-  freqs.forEach((f) => sweep(ac, f, f, dur, type, vol / freqs.length));
+
+function sweep(
+  ac: AudioContext,
+  f1: number,
+  f2: number,
+  dur: number,
+  type: OscType,
+  vol: number,
+) {
+  const oscillator = ac.createOscillator();
+  const gain = ac.createGain();
+
+  oscillator.type = type;
+
+  oscillator.frequency.setValueAtTime(f1, ac.currentTime);
+
+  oscillator.frequency.exponentialRampToValueAtTime(
+    Math.max(0.001, f2),
+    ac.currentTime + dur,
+  );
+
+  gain.gain.setValueAtTime(vol, ac.currentTime);
+
+  gain.gain.exponentialRampToValueAtTime(
+    0.0001,
+    ac.currentTime + dur,
+  );
+
+  oscillator.connect(gain);
+  gain.connect(ac.destination);
+
+  oscillator.start();
+  oscillator.stop(ac.currentTime + dur);
 }
 
-export function playSnd(name: any) {
-  if (muted) return;
-  if (SOUNDS[name]) {
-    try {
-      const a = SOUNDS[name].cloneNode();
-      a.volume = SOUND_VOLUME[name] || 0.4;
-      a.play().catch(() => {});
-      return;
-    } catch {}
+function noise(
+  ac: AudioContext,
+  dur: number,
+  vol: number,
+  lpf = 1500,
+) {
+  const length = Math.max(
+    1,
+    Math.floor(ac.sampleRate * dur),
+  );
+
+  const buffer = ac.createBuffer(
+    1,
+    length,
+    ac.sampleRate,
+  );
+
+  const data = buffer.getChannelData(0);
+
+  for (let i = 0; i < length; i++) {
+    data[i] = Math.random() * 2 - 1;
   }
+
+  const source = ac.createBufferSource();
+  source.buffer = buffer;
+
+  const filter = ac.createBiquadFilter();
+  filter.type = "lowpass";
+  filter.frequency.value = lpf;
+
+  const gain = ac.createGain();
+
+  gain.gain.setValueAtTime(vol, ac.currentTime);
+
+  gain.gain.exponentialRampToValueAtTime(
+    0.0001,
+    ac.currentTime + dur,
+  );
+
+  source.connect(filter);
+  filter.connect(gain);
+  gain.connect(ac.destination);
+
+  source.start();
+}
+
+function arp(
+  ac: AudioContext,
+  freqs: number[],
+  step: number,
+  type: OscType,
+  vol: number,
+) {
+  freqs.forEach((freq, index) => {
+    setTimeout(() => {
+      sweep(ac, freq, freq, step, type, vol);
+    }, index * step * 800);
+  });
+}
+
+function chord(
+  ac: AudioContext,
+  freqs: number[],
+  dur: number,
+  type: OscType,
+  vol: number,
+) {
+  freqs.forEach((freq) => {
+    sweep(
+      ac,
+      freq,
+      freq,
+      dur,
+      type,
+      vol / freqs.length,
+    );
+  });
+}
+
+export function playSnd(name: SoundName) {
+  if (muted) return;
+
+  const sound = SOUNDS[name];
+
+  if (sound) {
+    try {
+      const audio = sound.cloneNode() as HTMLAudioElement;
+
+      audio.volume = SOUND_VOLUME[name] ?? 0.4;
+
+      void audio.play();
+
+      return;
+    } catch {
+      // Ignore playback errors
+    }
+  }
+
   const ac = ensureAC();
+
   if (!ac) return;
-  const v = SOUND_VOLUME[name] || 0.3;
+
+  const volume = SOUND_VOLUME[name] ?? 0.3;
+
   switch (name) {
     case "jump":
-      sweep(ac, 220, 520, 0.1, "square", v);
+      sweep(ac, 220, 520, 0.1, "square", volume);
       break;
+
     case "doublejump":
-      sweep(ac, 420, 760, 0.1, "square", v);
+      sweep(ac, 420, 760, 0.1, "square", volume);
       break;
+
     case "dash":
-      sweep(ac, 600, 220, 0.14, "sawtooth", v);
-      noise(ac, 0.06, v * 0.5, 1800);
+      sweep(ac, 600, 220, 0.14, "sawtooth", volume);
+      noise(ac, 0.06, volume * 0.5, 1800);
       break;
+
     case "land":
-      noise(ac, 0.07, v, 800);
+      noise(ac, 0.07, volume, 800);
       break;
+
     case "collect":
-      sweep(ac, 880, 1320, 0.1, "sine", v);
+      sweep(ac, 880, 1320, 0.1, "sine", volume);
       break;
+
     case "big_collect":
-      arp(ac, [523, 659, 784, 1047], 0.05, "sine", v);
+      arp(
+        ac,
+        [523, 659, 784, 1047],
+        0.05,
+        "sine",
+        volume,
+      );
       break;
+
     case "level_up":
-      arp(ac, [523, 659, 784, 1047], 0.06, "triangle", v);
+      arp(
+        ac,
+        [523, 659, 784, 1047],
+        0.06,
+        "triangle",
+        volume,
+      );
       break;
+
     case "discover":
-      chord(ac, [392, 494, 587], 0.4, "sine", v);
+      chord(
+        ac,
+        [392, 494, 587],
+        0.4,
+        "sine",
+        volume,
+      );
       break;
+
     case "achievement":
-      arp(ac, [659, 784, 988, 1318], 0.07, "triangle", v);
+      arp(
+        ac,
+        [659, 784, 988, 1318],
+        0.07,
+        "triangle",
+        volume,
+      );
       break;
+
     case "portal":
-      sweep(ac, 100, 500, 0.4, "sine", v);
+      sweep(ac, 100, 500, 0.4, "sine", volume);
       break;
+
     case "click":
-      sweep(ac, 1000, 1000, 0.03, "square", v);
+      sweep(ac, 1000, 1000, 0.03, "square", volume);
       break;
   }
 }
