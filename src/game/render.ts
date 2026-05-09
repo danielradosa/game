@@ -415,14 +415,26 @@ function drawEntities(ctx: Ctx, s: GameState): void {
         const cx = x + TILE_SIZE / 2,
           by = y + TILE_SIZE - 4
         if (!tryDrawSprite(ctx, "npc_elder", cx, by)) {
+          // Shadow
           ctx.fillStyle = "#3a2030"
           ctx.beginPath()
           ctx.ellipse(cx, by + 2, 10, 3, 0, 0, Math.PI * 2)
           ctx.fill()
+          // Legs / boots peek under the robe so the figure has a base
+          ctx.fillStyle = "#2a1a30"
+          ctx.fillRect(cx - 6, by - 6, 4, 6)
+          ctx.fillRect(cx + 2, by - 6, 4, 6)
           // Robe (taller torso)
           ctx.fillStyle = "#5a4480"
           ctx.fillRect(cx - 9, by - 32, 18, 28)
-          // Sash detail
+          // Sleeves — same robe color, hang at the sides
+          ctx.fillRect(cx - 13, by - 28, 4, 17)
+          ctx.fillRect(cx + 9, by - 28, 4, 17)
+          // Hands at the cuff (skin)
+          ctx.fillStyle = "#e8c1a0"
+          ctx.fillRect(cx - 13, by - 12, 4, 4)
+          ctx.fillRect(cx + 9, by - 12, 4, 4)
+          // Sash detail across the middle of the robe
           ctx.fillStyle = "#3a2860"
           ctx.fillRect(cx - 9, by - 18, 18, 2)
           // Neck — skin column between robe top and head bottom
@@ -454,13 +466,25 @@ function drawEntities(ctx: Ctx, s: GameState): void {
         const cx = x + TILE_SIZE / 2,
           by = y + TILE_SIZE - 4
         if (!tryDrawSprite(ctx, "npc_merchant", cx, by)) {
+          // Shadow
           ctx.fillStyle = "#202a30"
           ctx.beginPath()
           ctx.ellipse(cx, by + 2, 10, 3, 0, 0, Math.PI * 2)
           ctx.fill()
+          // Boots peek below the cloak
+          ctx.fillStyle = "#1a2018"
+          ctx.fillRect(cx - 6, by - 6, 4, 6)
+          ctx.fillRect(cx + 2, by - 6, 4, 6)
           // Cloak (taller torso to match Elder height)
           ctx.fillStyle = "#3a6a4a"
           ctx.fillRect(cx - 9, by - 32, 18, 28)
+          // Sleeves
+          ctx.fillRect(cx - 13, by - 28, 4, 17)
+          ctx.fillRect(cx + 9, by - 28, 4, 17)
+          // Hands (skin) at cuffs
+          ctx.fillStyle = "#e8c1a0"
+          ctx.fillRect(cx - 13, by - 12, 4, 4)
+          ctx.fillRect(cx + 9, by - 12, 4, 4)
           // Bronze belt across the middle
           ctx.fillStyle = "#c8a050"
           ctx.fillRect(cx - 9, by - 18, 18, 2)
@@ -898,18 +922,22 @@ function drawPlayer(ctx: Ctx, s: GameState, ch: Character): void {
   ctx.fillStyle = "#1a1a1a"
   ctx.fillRect(-bodyW / 2 + 2, -bodyH * 0.04 - legSwing, bodyW / 2 - 3, 4)
   ctx.fillRect(0, -bodyH * 0.04 + legSwing, bodyW / 2 - 3, 4)
-  const tg = ctx.createLinearGradient(-bodyW / 2, -bodyH, bodyW / 2, -bodyH * 0.4)
-  tg.addColorStop(0, shade(ch.shirt, -20))
-  tg.addColorStop(0.5, ch.shirt)
-  tg.addColorStop(1, shade(ch.shirt, -10))
+  // Torso uses a vertical gradient (top → bottom) so the LEFT/RIGHT edges
+  // stay the solid shirt color — that way the arms (also solid shirt) sit
+  // flush against the torso instead of reading as detached strips.
+  const tg = ctx.createLinearGradient(0, -bodyH * 0.78, 0, -bodyH * 0.4)
+  tg.addColorStop(0, shade(ch.shirt, -12))
+  tg.addColorStop(1, ch.shirt)
   ctx.fillStyle = tg
   ctx.fillRect(-bodyW / 2, -bodyH * 0.78, bodyW, bodyH * 0.4)
   ctx.fillStyle = ch.accent
   ctx.fillRect(-bodyW / 2, -bodyH * 0.55, bodyW, 2)
   const armSwing = inAir ? -3 : -swing * 4
+  // Arms overlap the torso edges by 1 px so there is no visible seam at the
+  // shoulder — both pieces are now drawn in solid `ch.shirt`.
   ctx.fillStyle = ch.shirt
-  ctx.fillRect(-bodyW / 2 - 4, -bodyH * 0.74, 5, bodyH * 0.32 + armSwing)
-  ctx.fillRect(bodyW / 2 - 1, -bodyH * 0.74, 5, bodyH * 0.32 - armSwing)
+  ctx.fillRect(-bodyW / 2 - 3, -bodyH * 0.74, 5, bodyH * 0.32 + armSwing)
+  ctx.fillRect(bodyW / 2 - 2, -bodyH * 0.74, 5, bodyH * 0.32 - armSwing)
   ctx.fillStyle = ch.skin
   ctx.fillRect(-bodyW / 2 - 4, -bodyH * 0.42 + armSwing, 5, 4)
   ctx.fillRect(bodyW / 2 - 1, -bodyH * 0.42 - armSwing, 5, 4)
