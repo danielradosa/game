@@ -234,7 +234,17 @@ export const PERKS = [
     name: "Quickfeet+",
     desc: "+1 dash charge — chain a second air dash before landing",
   },
-  // 8 more added in the next commit (user-authored content pass).
+  // Lateral (reshape playstyle):
+  { id: "lodestone_plus", name: "Lodestone+", desc: "Greatly extends pickup magnet radius" },
+  { id: "scholar",        name: "Scholar",    desc: "+50% XP from kills" },
+  { id: "greed",          name: "Greed",      desc: "+1 basic per kill" },
+  { id: "ironclad",       name: "Ironclad",   desc: "Hit-iframes last 50% longer" },
+  { id: "swift_strike",   name: "Swift Strike", desc: "Slash cooldown -15%" },
+  { id: "long_arm",       name: "Long Arm",   desc: "Slash reach +25%" },
+
+  // Strict power (use sparingly):
+  { id: "vigor",          name: "Vigor",      desc: "+1 max HP permanently" },
+  { id: "phoenix",        name: "Phoenix",    desc: "Revive once per session at 2 HP" },
 ] as const satisfies readonly Perk[]
 
 export type PerkId = (typeof PERKS)[number]["id"]

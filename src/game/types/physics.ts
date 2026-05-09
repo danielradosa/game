@@ -266,6 +266,10 @@ export interface GameState {
   // are determined by this seed, so it must be stable per save.
   worldSeed: number
   hitStop: number // when > 0, physics ticks freeze for this many frames (impact pause)
+  // Phoenix perk session state. True once the perk has been consumed this
+  // session. Not serialized — reloading a save resets this so the player
+  // gets one revive per "play session" rather than per save-file.
+  phoenixUsed: boolean
   collected: Set<string> // "<scene>:<tx>,<ty>" keys of pickups already grabbed
   particles: Particle[]
   bgPart: BgParticle[]

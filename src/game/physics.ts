@@ -160,7 +160,12 @@ export function stepGame(
 
   const mods = cb.getMods()
   const runMax = mods.includes("quickfeet") ? MAX_RUN_SPEED * 1.15 : MAX_RUN_SPEED
-  const magnetR = mods.includes("lodestone") ? MAGNET_RADIUS * 1.6 : MAGNET_RADIUS
+  // Magnet radius stacks the lodestone mod and the lodestone_plus perk —
+  // both apply if active so a player who's done the work to get both is
+  // genuinely vacuuming the screen.
+  let magnetR = MAGNET_RADIUS
+  if (mods.includes("lodestone")) magnetR *= 1.6
+  if (cb.hasPerk("lodestone_plus")) magnetR *= 1.6
   // Snapshot for the renderer (which only reads s, not cb).
   s.activeMods = mods
   s.activeWeaponLevel = cb.getWeaponLevel()
@@ -186,6 +191,21 @@ export function stepGame(
   // position to the most recent death so the player walks back to where
   // they last fell.
   function handlePlayerDeath(): void {
+    // Phoenix perk — once-per-session revive at 2 HP. Gates the death
+    // stash and respawn entirely so the player never even leaves the
+    // delve. Session-scoped (s.phoenixUsed isn't persisted) so reloading
+    // a save grants a fresh revive.
+    if (cb.hasPerk("phoenix") && !s.phoenixUsed) {
+      s.phoenixUsed = true
+      p.hp = 2
+      cb.setHp(2)
+      cb.notify("Phoenix · revived at 2 HP", "ach")
+      // Brief invuln so the player has time to re-orient before the next hit.
+      p.damageIframes = Math.max(p.damageIframes, 60)
+      addParticles(s, p.x + PLAYER_WIDTH / 2, p.y + PLAYER_HEIGHT / 2, 24, "#ffaa40", 2.4)
+      playSnd("level_up")
+      return
+    }
     p.dead = true
     if (s.current === "delve" && s.activePortalId !== null) {
       const portal = s.portals.get(s.activePortalId)
@@ -750,8 +770,16 @@ export function stepGame(
         if (e.hp <= 0) {
           e.alive = false
           s.defeatedEnemies.add(e.spawnIndex)
-          cb.addMaterials(eStats.killDrops)
-          cb.grantXP(eStats.killXp, "stormed")
+          // Greed perk — bolt +1 basic onto every kill drop.
+          const drops = cb.hasPerk("greed")
+            ? { ...eStats.killDrops, basic: (eStats.killDrops.basic ?? 0) + 1 }
+            : eStats.killDrops
+          cb.addMaterials(drops)
+          // Scholar perk — kills grant +50% XP.
+          cb.grantXP(
+            Math.round(eStats.killXp * (cb.hasPerk("scholar") ? 1.5 : 1)),
+            "stormed",
+          )
           if (
             s.current === "delve" &&
             !s.delveCleared &&
@@ -795,7 +823,9 @@ export function stepGame(
   const pCy = p.y + PLAYER_HEIGHT / 2
   // Mods stack on the base reach. Stormbound is the only reach-modifier for
   // now (+50%) — slot a longer chain here if other reach mods land later.
-  const reachMul = mods.includes("stormbound") ? 1.5 : 1
+  // long_arm perk multiplies on top of the mod bonus (stacks multiplicatively).
+  let reachMul = mods.includes("stormbound") ? 1.5 : 1
+  if (cb.hasPerk("long_arm")) reachMul *= 1.25
   const slashReach = SLASH_REACH * reachMul
   const pHalfW = PLAYER_WIDTH / 2 + slashReach
   const pHalfH = PLAYER_HEIGHT / 2 + slashReach
@@ -948,7 +978,10 @@ export function stepGame(
     // through is the canonical safe attack (no damage taken + slash lands).
     if (cb.hasSword() && p.slashCool <= 0) {
       p.slashFrames = SLASH_FRAMES
-      p.slashCool = SLASH_COOLDOWN
+      // swift_strike perk — slash cooldown -15% (floor min 1 to keep the gap).
+      p.slashCool = cb.hasPerk("swift_strike")
+        ? Math.max(1, Math.floor(SLASH_COOLDOWN * 0.85))
+        : SLASH_COOLDOWN
       p.facing = eCx > pCx ? 1 : -1
       e.hp -= slashDamage
       e.iframes = ENEMY_HIT_IFRAMES
@@ -970,8 +1003,13 @@ export function stepGame(
         e.alive = false
         s.defeatedEnemies.add(e.spawnIndex)
         addParticles(s, eCx, eCy, 24, "#c08aff", 2.2)
-        cb.addMaterials(stats.killDrops)
-        cb.grantXP(stats.killXp, "slain")
+        // Greed perk — bolt +1 basic onto every kill drop.
+        const drops = cb.hasPerk("greed")
+          ? { ...stats.killDrops, basic: (stats.killDrops.basic ?? 0) + 1 }
+          : stats.killDrops
+        cb.addMaterials(drops)
+        // Scholar perk — kills grant +50% XP.
+        cb.grantXP(Math.round(stats.killXp * (cb.hasPerk("scholar") ? 1.5 : 1)), "slain")
         // Sanguine: lifesteal one heart per kill, hard-clamped to maxHp.
         if (mods.includes("sanguine")) {
           const next = Math.min(p.maxHp, p.hp + 1)
@@ -1003,10 +1041,15 @@ export function stepGame(
     // every overlap frame against multi-hp enemies.
     if (e.alive && e.iframes <= 0 && p.damageIframes <= 0 && p.iframes <= 0) {
       p.hp = Math.max(0, p.hp - 1)
-      // Resilience — extends the post-hit invuln window.
-      p.damageIframes = mods.includes("resilience")
+      // Resilience mod and ironclad perk both extend the post-hit invuln
+      // window. They stack multiplicatively — running both stretches the
+      // window 2.25x.
+      const baseIframes = mods.includes("resilience")
         ? Math.floor(DAMAGE_IFRAMES * 1.5)
         : DAMAGE_IFRAMES
+      p.damageIframes = cb.hasPerk("ironclad")
+        ? Math.floor(baseIframes * 1.5)
+        : baseIframes
       p.vx = (pCx > eCx ? 1 : -1) * DAMAGE_KNOCKBACK_VX
       p.vy = DAMAGE_KNOCKBACK_VY
       p.wallLatched = false
@@ -1045,9 +1088,13 @@ export function stepGame(
     if (dpx * dpx + dpy * dpy < reach * reach) {
       if (p.damageIframes <= 0 && p.iframes <= 0) {
         p.hp = Math.max(0, p.hp - 1)
-        p.damageIframes = mods.includes("resilience")
+        // Same resilience+ironclad stack as the contact-damage path above.
+        const baseIframes = mods.includes("resilience")
           ? Math.floor(DAMAGE_IFRAMES * 1.5)
           : DAMAGE_IFRAMES
+        p.damageIframes = cb.hasPerk("ironclad")
+          ? Math.floor(baseIframes * 1.5)
+          : baseIframes
         p.vx = (pCx > pr.x ? 1 : -1) * DAMAGE_KNOCKBACK_VX * 0.7
         p.vy = DAMAGE_KNOCKBACK_VY * 0.7
         s.cam.shake = Math.max(s.cam.shake, 5)
@@ -1169,6 +1216,7 @@ export function makeInitialState(
     activePortalId,
     worldSeed,
     hitStop: 0,
+    phoenixUsed: false,
     collected,
     particles: [],
     projectiles: [],

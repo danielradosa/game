@@ -1292,11 +1292,25 @@ export default function App() {
             alreadyPicked={hud.perks}
             onPick={(id: PerkId) => {
               const perk = PERKS.find((p) => p.id === id)
-              setHud((h) => ({
-                ...h,
-                perks: [...h.perks, id],
-                pendingPerkChoice: null,
-              }))
+              setHud((h) => {
+                const next: HudState = {
+                  ...h,
+                  perks: [...h.perks, id],
+                  pendingPerkChoice: null,
+                }
+                if (id === "vigor") next.maxHpBonus = h.maxHpBonus + 1
+                return next
+              })
+              // Vigor — one-shot +1 max HP. Persists via maxHpBonus (saved)
+              // and bumps the live player so the new pip lights up immediately.
+              if (id === "vigor") {
+                const liveS = stateRef.current
+                if (liveS) {
+                  liveS.p.maxHp += 1
+                  liveS.p.hp = Math.min(liveS.p.maxHp, liveS.p.hp + 1)
+                  setHp(liveS.p.hp)
+                }
+              }
               pushNotif(`Perk acquired: ${perk?.name ?? id}`, "ach")
               playSnd("level_up")
             }}
