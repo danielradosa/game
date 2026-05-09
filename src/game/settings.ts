@@ -30,6 +30,7 @@ const DEFAULT_SETTINGS: Settings = {
   fullscreen: false,
   keys: DEFAULT_KEYS,
   showTutorialNextStart: false,
+  syncToAccount: false,
 }
 
 const KEY = "aw:settings"
@@ -56,6 +57,7 @@ export function loadSettings(): Settings {
       fullscreen: parsed.fullscreen ?? DEFAULT_SETTINGS.fullscreen,
       keys: { ...DEFAULT_KEYS, ...safeKeys },
       showTutorialNextStart: parsed.showTutorialNextStart ?? false,
+      syncToAccount: parsed.syncToAccount ?? false,
     }
   } catch {
     return { ...DEFAULT_SETTINGS, keys: { ...DEFAULT_KEYS } }

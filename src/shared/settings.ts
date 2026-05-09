@@ -16,4 +16,5 @@ export interface Settings {
   fullscreen: boolean
   keys: KeyBindings
   showTutorialNextStart: boolean
+  syncToAccount?: boolean
 }

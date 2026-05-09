@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react"
 import { playSnd } from "@/game/audio"
 import { DEFAULT_KEYS, type KeyBindings, type Settings } from "@/game/settings"
+import { AccountPanel } from "@/ui/AccountPanel"
+import { useAccount } from "@/auth/account-context"
 
 interface SettingsMenuProps {
   initial: Settings
@@ -33,6 +35,28 @@ export function formatKey(k: string): string {
   if (k === "ArrowDown") return "↓"
   if (k.length === 1) return k.toUpperCase()
   return k
+}
+
+function SyncSettingsToggle({
+  settings,
+  onChange,
+}: {
+  settings: Settings
+  onChange: (next: Settings) => void
+}) {
+  const { state } = useAccount()
+  if (state.status !== "signed-in") return null
+  return (
+    <label className="flex items-center gap-2 text-sm text-zinc-300 cursor-pointer">
+      <input
+        type="checkbox"
+        checked={settings.syncToAccount ?? false}
+        onChange={(e) => onChange({ ...settings, syncToAccount: e.target.checked })}
+        className="accent-orange-300"
+      />
+      Sync settings to account
+    </label>
+  )
 }
 
 export function SettingsMenu({ initial, onApply, onBack }: SettingsMenuProps) {
@@ -259,6 +283,16 @@ export function SettingsMenu({ initial, onApply, onBack }: SettingsMenuProps) {
               Reset to Defaults
             </button>
           </div>
+        </div>
+
+        {/* Account panel */}
+        <div className="bg-stone-800/50 p-5 rounded space-y-4">
+          <h3 className="text-lg font-semibold text-orange-200">Account</h3>
+          <AccountPanel />
+          <SyncSettingsToggle
+            settings={settings}
+            onChange={(next) => setSettings(next)}
+          />
         </div>
 
         <div className="flex justify-end">
