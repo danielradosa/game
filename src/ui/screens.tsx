@@ -18,11 +18,12 @@ import {
   HEAL_COST,
   MERCHANT_HP_COST,
   MERCHANT_HP_MAX_BONUS,
+  REBIRTH_COST,
   STORM_COST,
 } from "@/game/shop"
 import { playSnd } from "@/game/audio"
 import CharacterPreview from "@/ui/CharacterPreview"
-import type { Character, NpcId } from "@/game/types/physics"
+import type { Character, NpcId, PortalState } from "@/game/types/physics"
 import type { HudState, SaveManifest } from "@/game/types/save"
 
 interface MainMenuProps {
@@ -220,8 +221,20 @@ export function LoadMenu({ manifest, onLoad, onDelete, onBack }: LoadMenuProps) 
               className="bg-stone-800/60 rounded-lg p-4 flex items-center justify-between"
             >
               <div className="flex-1 min-w-0">
-                <div className="font-semibold text-white">
-                  {s.name} <span className="text-stone-400 font-normal">· Lv {s.level}</span>
+                <div className="font-semibold text-white flex items-center gap-2">
+                  <span>
+                    {s.name} <span className="text-stone-400 font-normal">· Lv {s.level}</span>
+                  </span>
+                  {/* Rebirth badge — fallback to 0 for pre-Phase-C-Task-4
+                      manifests that didn't track the field. */}
+                  {(s.rebirths ?? 0) > 0 && (
+                    <span
+                      className="px-1.5 py-0.5 rounded bg-violet-900/40 text-violet-200 text-[10px] font-medium"
+                      title="World rebirths"
+                    >
+                      ♻ ×{s.rebirths}
+                    </span>
+                  )}
                 </div>
                 <div className="text-xs text-stone-400">
                   {s.where} · {s.discovered}/{ZONES.length} zones · {s.materials} materials
@@ -567,6 +580,10 @@ interface DialogPanelProps {
   onUpgradeWeapon: () => void
   onBuyHeal: () => void
   onBuyStorm: () => void
+  // Portal state from the live GameState. Read-only — used to check whether
+  // every portal is destroyed (gate the Rebirth option).
+  portals: ReadonlyMap<string, PortalState>
+  onRebirth: () => void
 }
 
 export function DialogPanel({
@@ -580,6 +597,8 @@ export function DialogPanel({
   onUpgradeWeapon,
   onBuyHeal,
   onBuyStorm,
+  portals,
+  onRebirth,
 }: DialogPanelProps) {
   if (npc === "merchant") {
     const atCap = hud.maxHpBonus >= MERCHANT_HP_MAX_BONUS
@@ -599,8 +618,7 @@ export function DialogPanel({
           <p className="text-stone-200 leading-relaxed mb-5">{text}</p>
           <div className="mb-5 space-y-3">
             <div className="text-xs text-stone-400 uppercase tracking-wider">
-              Stall — {hud.materials.basic}b · {hud.materials.essence}e ·{" "}
-              {hud.materials.crystal}c
+              Stall — {hud.materials.basic}b · {hud.materials.essence}e · {hud.materials.crystal}c
             </div>
             {!atCap && (
               <button
@@ -716,8 +734,7 @@ export function DialogPanel({
         {canCraft && (
           <div className="mb-5 space-y-4">
             <div className="text-xs text-stone-400 uppercase tracking-wider">
-              Forge — {hud.materials.basic}b · {hud.materials.essence}e ·{" "}
-              {hud.materials.crystal}c
+              Forge — {hud.materials.basic}b · {hud.materials.essence}e · {hud.materials.crystal}c
             </div>
 
             {/* Weapon upgrade — single button advancing the next tier. */}
@@ -730,9 +747,7 @@ export function DialogPanel({
                     <div className="text-xs text-stone-400 uppercase tracking-wider mb-1">
                       Weapon
                     </div>
-                    <div className="text-sm text-yellow-200 font-semibold">
-                      ★ {current.name}
-                    </div>
+                    <div className="text-sm text-yellow-200 font-semibold">★ {current.name}</div>
                     <div className="text-xs text-stone-400 mt-0.5">
                       Honed to its limit · {current.damage} damage
                     </div>
@@ -763,6 +778,43 @@ export function DialogPanel({
                     </div>
                     <div className="text-[10px] text-stone-500 mt-1">
                       Cost: {formatCost(next.cost)}
+                    </div>
+                  </button>
+                </div>
+              )
+            })()}
+
+            {/* Rebirth — visible only when every known portal in this world
+                has been sealed. Reroll worldSeed, keep all progression. The
+                window.confirm() handshake lives in App.tsx onRebirth. */}
+            {(() => {
+              if (portals.size === 0) return null
+              const allDestroyed = Array.from(portals.values()).every(
+                (p) => p.status === "destroyed",
+              )
+              if (!allDestroyed) return null
+              const affordable = canAfford(REBIRTH_COST, hud.materials)
+              return (
+                <div className="bg-violet-900/20 rounded-lg p-3 border border-violet-700/40">
+                  <div className="text-xs text-violet-300 uppercase tracking-wider mb-1">
+                    Rebirth · ×{hud.rebirths}
+                  </div>
+                  <button
+                    disabled={!affordable}
+                    onClick={onRebirth}
+                    className={
+                      "w-full text-left p-3 rounded-lg border transition mt-1 " +
+                      (affordable
+                        ? "bg-stone-900 border-violet-700 hover:border-violet-300/60"
+                        : "bg-stone-900 border-stone-800 opacity-50 cursor-not-allowed")
+                    }
+                  >
+                    <div className="font-semibold text-sm text-violet-200">Reroll the world</div>
+                    <div className="text-xs text-stone-400 mt-0.5">
+                      The rifts have all sealed. Bend the seed; keep your power.
+                    </div>
+                    <div className="text-[10px] text-stone-500 mt-1">
+                      Cost: {formatCost(REBIRTH_COST)}
                     </div>
                   </button>
                 </div>

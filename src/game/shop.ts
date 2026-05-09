@@ -16,3 +16,9 @@ export const MERCHANT_HP_MAX_BONUS = 2
 
 // Per-slot inventory cap for stackable consumables (heal, storm).
 export const CONSUMABLE_CAP = 5
+
+// Cost of an Elder Rebirth — rerolls worldSeed and rebuilds portals. Visible
+// only when every portal in s.portals has status "destroyed" (i.e. the run
+// has hit a wall and needs a refresh). Pricing is intentionally steep so it
+// gates behind a real burrower-grinding session.
+export const REBIRTH_COST: Cost = { crystal: 5, essence: 30 }

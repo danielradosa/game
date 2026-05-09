@@ -335,8 +335,7 @@ function drawEntities(ctx: Ctx, s: GameState): void {
         } else {
           ctx.save()
           // Pick a glow palette per tier. Tier 0 = lavender, tier 1+ = blood.
-          const glow =
-            tier > 0 ? [255, 70, 70] : [160, 100, 220]
+          const glow = tier > 0 ? [255, 70, 70] : [160, 100, 220]
           const core = tier > 0 ? "#3a0a0a" : "#1a0a2a"
           for (let i = 3; i >= 0; i--) {
             const r = 20 + i * 6 + Math.sin(s.time * 0.005 + i) * 3

@@ -25,7 +25,7 @@ There is no test runner configured.
 
 The split between React state and the canvas game loop is the central thing to understand.
 
-**`src/App.tsx`** is the React shell. It owns scene routing (`menu | about | loadmenu | creator | play`), HUD state (`level`, `xp`, `materials`, `discovered`, `achievements`, `hasSword`, `questStage`, `mods`, `inDelve`), HP, dialog target, the character record, save manifest, and notifications. While `scene === "play"` it mounts a single `<canvas>` and runs a `requestAnimationFrame` loop. **Per-frame mutations live in refs (`stateRef`, `inputRef`, `charRef`, `hudRef`, `pausedRef`, `dialogRef`), not React state** — re-rendering 60×/sec would be untenable. State only goes through `setHud` / `setHp` / `setNotifs` when the *outer* world changes (XP, achievement, scene transition, HP delta, quest stage).
+**`src/App.tsx`** is the React shell. It owns scene routing (`menu | about | loadmenu | creator | play`), HUD state (`level`, `xp`, `materials`, `discovered`, `achievements`, `hasSword`, `questStage`, `mods`, `inDelve`), HP, dialog target, the character record, save manifest, and notifications. While `scene === "play"` it mounts a single `<canvas>` and runs a `requestAnimationFrame` loop. **Per-frame mutations live in refs (`stateRef`, `inputRef`, `charRef`, `hudRef`, `pausedRef`, `dialogRef`), not React state** — re-rendering 60×/sec would be untenable. State only goes through `setHud` / `setHp` / `setNotifs` when the _outer_ world changes (XP, achievement, scene transition, HP delta, quest stage).
 
 ### Fixed-timestep loop (60 Hz) + render interpolation
 
@@ -38,7 +38,7 @@ while (accumulator >= TICK_MS) { stepGame(s, …, TICK_MS); accumulator -= TICK_
 draw(ctx, s, ch, alpha = accumulator / TICK_MS)
 ```
 
-`stepGame` snapshots `p.x/y` → `p.renderPrevX/Y` and `cam.x/y` → `prevCamX/Y` at the *start* of each tick. `draw` lerps the live `p.x/y` and `cam.x/y` between those snapshots by `alpha`, then restores them, so motion is smooth on any refresh rate without physics drift. **On any teleport (portal, respawn, load) call `snapRenderPrev(s)` after moving the player** to prevent a lerp smear across the cut.
+`stepGame` snapshots `p.x/y` → `p.renderPrevX/Y` and `cam.x/y` → `prevCamX/Y` at the _start_ of each tick. `draw` lerps the live `p.x/y` and `cam.x/y` between those snapshots by `alpha`, then restores them, so motion is smooth on any refresh rate without physics drift. **On any teleport (portal, respawn, load) call `snapRenderPrev(s)` after moving the player** to prevent a lerp smear across the cut.
 
 ### Physics → React callbacks
 
@@ -78,6 +78,7 @@ PortalState = { seed, tier, status: "fresh" | "destroyed", defeatedEnemies[], cl
 When a portal seals, only THAT portal's `"p"` tile mutates to `"X"`. On load, the saved `portals` Record rehydrates into a Map and every `status: "destroyed"` portal replays its tile mutation against the freshly-built `ow.map`. Old single-portal saves with `portalDestroyed: true` migrate forward by marking every `p` tile destroyed.
 
 Delve `collected` keys are namespaced as `"delve:<portalId>:<tx>,<ty>"` so two portals can't collide on the same tile coords.
+
 - `data.ts` — static tables (`ZONES`, `ACHIEVEMENTS`, `SKINS`, `HAIRS`, `SHIRTS`, `PANTS`, `ACCENTS`, `PROPOSED_MODS`, `MODS`, `WEAPONS`). Each table uses `as const satisfies readonly T[]` so the literal types survive, and `ZoneId` / `AchievementId` / `ModId` are derived via `(typeof TABLE)[number]["id"]` — adding a row widens the union automatically. `MODS` carry a `kind: "utility" | "weapon"` field that drives forge-UI grouping; physics special-cases each id (`searing` adds slash damage + flame particles, `stormbound` boosts reach + draws aura/crackles, `sanguine` heals on kill). `WEAPONS` is indexed by `hud.weaponLevel`; the Elder forge sells the next-tier upgrade.
 - `types/{physics,data,sprites,save}.ts` — type contracts shared across the engine.
 

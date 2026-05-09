@@ -60,10 +60,11 @@ export function generateOverworld(seed: number): OverworldLevel {
   const isFlat3 = (x: number): boolean =>
     x >= 1 && x <= W - 2 && g[x - 1] === g[x] && g[x] === g[x + 1]
 
-  // Pick distinct anchored spots: NPC + 4 portals, each on a flat-3 patch
-  // and spaced apart so they're not crowded together.
+  // Pick distinct anchored spots: NPC + 6 portals, each on a flat-3 patch
+  // and spaced apart so they're not crowded together. Spacing relaxes from
+  // 12 → 8 to fit the extra portals comfortably across the same world width.
   const taken: number[] = []
-  const findFlatSpot = (range: [number, number], minDist = 12): number | null => {
+  const findFlatSpot = (range: [number, number], minDist = 8): number | null => {
     const [lo, hi] = range
     for (let attempts = 0; attempts < 80; attempts++) {
       const x = randInt(rng, lo, hi)
@@ -75,21 +76,25 @@ export function generateOverworld(seed: number): OverworldLevel {
     return null
   }
 
-  const npcX = findFlatSpot([8, 30]) ?? 10
+  const npcX = findFlatSpot([8, 30], 12) ?? 10
   m[g[npcX]! - 1]![npcX] = "n"
 
   // Merchant — placed somewhere in the middle bands so the player encounters
   // them naturally on the way to a portal. Independent flat-spot search; the
   // taken[] de-dupe makes sure they're not on top of the Elder or a portal.
-  const merchantX = findFlatSpot([35, 90]) ?? 50
+  const merchantX = findFlatSpot([35, 90], 12) ?? 50
   m[g[merchantX]! - 1]![merchantX] = "M"
 
-  // Try for 4 portals across the width. If a band fails (too few flats), the
-  // returned null is replaced with a fallback x in that band.
+  // Try for 6 portals across the width. If a band fails (too few flats), the
+  // returned null is replaced with a fallback x in that band. Bumped from 4
+  // in Phase C — pairs with the Rebirth dialog which rerolls the world when
+  // every portal in s.portals is destroyed.
   const portalBands: [number, number][] = [
-    [35, 55],
-    [55, 75],
-    [75, 92],
+    [32, 44],
+    [44, 56],
+    [56, 68],
+    [68, 80],
+    [80, 92],
     [92, 105],
   ]
   for (const band of portalBands) {
@@ -381,11 +386,7 @@ export function generateDelve(seed: number, tier = 0): DelveLevel {
   for (let i = 0; i < enemyCount; i++) {
     const type = pickType()
     const wantPlat =
-      type === "spitter"
-        ? chance(rng, 0.85)
-        : type === "burrower"
-          ? false
-          : chance(rng, 0.5)
+      type === "spitter" ? chance(rng, 0.85) : type === "burrower" ? false : chance(rng, 0.5)
     if (plats.length > 0 && wantPlat) {
       const pl = plats[randInt(rng, 0, plats.length - 1)]!
       enemySpawns.push({

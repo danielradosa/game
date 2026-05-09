@@ -31,8 +31,7 @@ export function mulberry32(seed: number): Rng {
 export const randInt = (rng: Rng, min: number, max: number): number =>
   Math.floor(rng() * (max - min + 1)) + min
 
-export const randRange = (rng: Rng, min: number, max: number): number =>
-  rng() * (max - min) + min
+export const randRange = (rng: Rng, min: number, max: number): number => rng() * (max - min) + min
 
 export const pick = <T>(rng: Rng, arr: readonly T[]): T => {
   if (arr.length === 0) throw new Error("pick: empty array")

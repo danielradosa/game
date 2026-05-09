@@ -131,8 +131,7 @@ export function spawnEnemiesFrom(
       fireCool: sp.type === "spitter" ? 30 + Math.floor(Math.random() * 60) : 0,
       // Burrower starts above-ground with a randomized first-dive timing so
       // a row of burrowers don't all dive in unison.
-      diveCool:
-        sp.type === "burrower" ? 60 + Math.floor(Math.random() * 120) : 0,
+      diveCool: sp.type === "burrower" ? 60 + Math.floor(Math.random() * 120) : 0,
       diveTime: 0,
       chillTime: 0,
     })
@@ -692,7 +691,10 @@ export function stepGame(
             if (s.delveCleared) cb.transitionToOver()
             else {
               const left = s.dl.enemySpawns.length - s.defeatedEnemies.size
-              cb.notify(`Portal sealed — ${left} ${left === 1 ? "guardian" : "guardians"} remain`, "xp")
+              cb.notify(
+                `Portal sealed — ${left} ${left === 1 ? "guardian" : "guardians"} remain`,
+                "xp",
+              )
             }
           }
         }

@@ -27,6 +27,10 @@ export interface HudState {
   weaponLevel: number
   // Active consumables stash. Stacked counts; capped at 5 each in App.
   consumables: { heal: number; storm: number }
+  // Number of times the player has performed an Elder Rebirth (rerolls
+  // worldSeed when every portal is destroyed). Persisted across runs;
+  // surfaced as a "♻ ×N" badge in the load menu.
+  rebirths: number
 }
 
 // What gets serialized into one save slot.
@@ -76,6 +80,9 @@ export interface SaveMeta {
   discovered: number // count, not list — keeps the manifest small
   date: string // ISO string from new Date().toISOString()
   where: string // human-readable: "In the Delve" | "Surface"
+  // Mirror of HudState.rebirths so the load menu can render a badge
+  // without having to read the full save body.
+  rebirths: number
 }
 
 export type SaveManifest = SaveMeta[]

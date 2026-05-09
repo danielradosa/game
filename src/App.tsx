@@ -19,16 +19,12 @@ import {
   HEAL_COST,
   MERCHANT_HP_COST,
   MERCHANT_HP_MAX_BONUS,
+  REBIRTH_COST,
   STORM_COST,
 } from "@/game/shop"
 import { generateDelve, generateOverworld } from "@/game/levels"
 import { freshSeed } from "@/game/rng"
-import {
-  stepGame,
-  makeInitialState,
-  snapRenderPrev,
-  spawnEnemiesFrom,
-} from "@/game/physics"
+import { stepGame, makeInitialState, snapRenderPrev, spawnEnemiesFrom } from "@/game/physics"
 import { PLAYER_MAX_HP } from "@/game/constants"
 import { draw, drawPaused } from "@/game/render"
 import { playSnd, setMuted as setMutedAudio } from "@/game/audio"
@@ -54,6 +50,8 @@ import type {
   ZoneBanner,
 } from "@/game/types/physics"
 import type { HudState, PortalStateSerialized, SaveManifest } from "@/game/types/save"
+
+const EMPTY_PORTAL_MAP: ReadonlyMap<string, PortalState> = new Map()
 
 export default function App() {
   const [scene, setScene] = useState<AppScene>("menu")
@@ -82,6 +80,7 @@ export default function App() {
     maxHpBonus: 0,
     weaponLevel: 0,
     consumables: { heal: 0, storm: 0 },
+    rebirths: 0,
   })
   const [hp, setHp] = useState<number>(PLAYER_MAX_HP)
   const [dialogNpc, setDialogNpc] = useState<NpcId | null>(null)
@@ -321,6 +320,74 @@ export default function App() {
     playSnd("portal")
   }, [pushNotif])
 
+  const handleRebirth = useCallback((): void => {
+    const liveS = stateRef.current
+    if (!liveS) return
+    if (!canAfford(REBIRTH_COST, hudRef.current.materials)) {
+      pushNotif(`Need ${formatMissing(REBIRTH_COST, hudRef.current.materials)} more`, "xp")
+      playSnd("land")
+      return
+    }
+    // window.confirm matches the existing dialog UX (no custom modal
+    // shell — Phase D will revisit). Cancel exits cleanly without
+    // any side effects.
+    if (!window.confirm("Rebirth: reroll the world. Keep level, perks, weapon, mods, items. Proceed?"))
+      return
+
+    // Spend cost and bump rebirth counter.
+    setHud((h) => ({
+      ...h,
+      materials: spend(REBIRTH_COST, h.materials),
+      rebirths: h.rebirths + 1,
+    }))
+
+    // Reroll worldSeed and regenerate the overworld. Old portal
+    // entries are wiped — every "p" tile in the new map gets a
+    // fresh PortalState. Delve `collected` keys are namespaced by
+    // portalId so they fall away naturally with the cleared Map;
+    // we still need to drop "over:" keys since those reference the
+    // old map's tile coords.
+    const newSeed = freshSeed()
+    liveS.worldSeed = newSeed
+    liveS.ow = generateOverworld(newSeed)
+    for (const key of Array.from(liveS.collected)) {
+      if (key.startsWith("over:")) liveS.collected.delete(key)
+    }
+    liveS.portals.clear()
+    for (let ty = 0; ty < liveS.ow.H; ty++) {
+      for (let tx = 0; tx < liveS.ow.W; tx++) {
+        if (liveS.ow.map[ty]?.[tx] === "p") {
+          liveS.portals.set(`${tx},${ty}`, {
+            seed: freshSeed(),
+            tier: 0,
+            status: "fresh",
+            defeatedEnemies: [],
+            cleared: false,
+            lostCache: null,
+          })
+        }
+      }
+    }
+    liveS.activePortalId = null
+    // Teleport player to the new spawn and snap the render-prev so
+    // the next frame doesn't lerp across the cut.
+    liveS.p.x = liveS.ow.spawn.x
+    liveS.p.y = liveS.ow.spawn.y
+    liveS.p.vx = 0
+    liveS.p.vy = 0
+    liveS.p.dashFrames = 0
+    liveS.p.dashCool = 0
+    liveS.level = liveS.ow
+    liveS.current = "over"
+    liveS.enemies = []
+    liveS.projectiles = []
+    snapRenderPrev(liveS)
+
+    pushNotif("World reborn", "ach")
+    playSnd("level_up")
+    setDialogNpc(null)
+  }, [pushNotif])
+
   // Map → Record so portals can JSON-serialize. Mirror of PortalState shape.
   const serializePortals = (
     portals: Map<string, PortalState>,
@@ -369,6 +436,7 @@ export default function App() {
       discovered: hudRef.current.discovered.length,
       date: new Date().toISOString(),
       where: s.current === "delve" ? "In the Delve" : "Surface",
+      rebirths: hudRef.current.rebirths,
     }
     if (setSave(id, data)) {
       const next = [meta, ...manifest]
@@ -411,6 +479,7 @@ export default function App() {
       discovered: hudRef.current.discovered.length,
       date: new Date().toISOString(),
       where: s.current === "delve" ? "In the Delve" : "Surface",
+      rebirths: hudRef.current.rebirths,
     }
     if (!setSave(id, data)) return
     setManifest((m) => {
@@ -463,6 +532,7 @@ export default function App() {
       maxHpBonus: 0,
       weaponLevel: 0,
       consumables: { heal: 0, storm: 0 },
+      rebirths: 0,
     })
     setHp(PLAYER_MAX_HP)
     setNotifs([])
@@ -581,6 +651,8 @@ export default function App() {
         maxHpBonus,
         weaponLevel: data.hud.weaponLevel ?? 0,
         consumables: data.hud.consumables ?? { heal: 0, storm: 0 },
+        // Forward-compat: pre-Phase-C-Task-4 saves don't have rebirths.
+        rebirths: data.hud.rebirths ?? 0,
         inDelve: data.pos.scene === "delve",
       })
       // Apply HP bonus to the live player so the loaded run starts with the
@@ -892,8 +964,7 @@ export default function App() {
                 />
                 <span
                   className={
-                    "font-bold text-pink-200 " +
-                    (hud.materials.essence === 0 ? "opacity-50" : "")
+                    "font-bold text-pink-200 " + (hud.materials.essence === 0 ? "opacity-50" : "")
                   }
                 >
                   {hud.materials.essence}
@@ -908,8 +979,7 @@ export default function App() {
                 />
                 <span
                   className={
-                    "font-bold text-cyan-200 " +
-                    (hud.materials.crystal === 0 ? "opacity-50" : "")
+                    "font-bold text-cyan-200 " + (hud.materials.crystal === 0 ? "opacity-50" : "")
                   }
                 >
                   {hud.materials.crystal}
@@ -1078,10 +1148,7 @@ export default function App() {
                 return
               }
               if (!canAfford(mod.cost, hudRef.current.materials)) {
-                pushNotif(
-                  `Need ${formatMissing(mod.cost, hudRef.current.materials)} more`,
-                  "xp",
-                )
+                pushNotif(`Need ${formatMissing(mod.cost, hudRef.current.materials)} more`, "xp")
                 playSnd("land")
                 return
               }
@@ -1128,10 +1195,7 @@ export default function App() {
                 return
               }
               if (!canAfford(next.cost, hudRef.current.materials)) {
-                pushNotif(
-                  `Need ${formatMissing(next.cost, hudRef.current.materials)} more`,
-                  "xp",
-                )
+                pushNotif(`Need ${formatMissing(next.cost, hudRef.current.materials)} more`, "xp")
                 playSnd("land")
                 return
               }
@@ -1149,10 +1213,7 @@ export default function App() {
                 return
               }
               if (!canAfford(HEAL_COST, hudRef.current.materials)) {
-                pushNotif(
-                  `Need ${formatMissing(HEAL_COST, hudRef.current.materials)} more`,
-                  "xp",
-                )
+                pushNotif(`Need ${formatMissing(HEAL_COST, hudRef.current.materials)} more`, "xp")
                 playSnd("land")
                 return
               }
@@ -1170,10 +1231,7 @@ export default function App() {
                 return
               }
               if (!canAfford(STORM_COST, hudRef.current.materials)) {
-                pushNotif(
-                  `Need ${formatMissing(STORM_COST, hudRef.current.materials)} more`,
-                  "xp",
-                )
+                pushNotif(`Need ${formatMissing(STORM_COST, hudRef.current.materials)} more`, "xp")
                 playSnd("land")
                 return
               }
@@ -1185,6 +1243,8 @@ export default function App() {
               pushNotif("Storm Vial +1", "ach")
               playSnd("collect")
             }}
+            portals={stateRef.current?.portals ?? EMPTY_PORTAL_MAP}
+            onRebirth={handleRebirth}
           />
         )}
       </div>
