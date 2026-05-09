@@ -360,12 +360,18 @@ export default function App() {
     )
       return
 
+    // a11 World Reborn — fires on the player's first rebirth. Read hudRef
+    // pre-commit because it updates after setHud, not synchronously.
+    const isFirstRebirth = hudRef.current.rebirths === 0
+
     // Spend cost and bump rebirth counter.
     setHud((h) => ({
       ...h,
       materials: spend(REBIRTH_COST, h.materials),
       rebirths: h.rebirths + 1,
     }))
+
+    if (isFirstRebirth) grantAch("a11")
 
     // Reroll worldSeed and regenerate the overworld. Old portal
     // entries are wiped — every "p" tile in the new map gets a
@@ -412,7 +418,7 @@ export default function App() {
     pushNotif("World reborn", "ach")
     playSnd("level_up")
     setDialogNpc(null)
-  }, [pushNotif])
+  }, [pushNotif, grantAch])
 
   // Map → Record so portals can JSON-serialize. Mirror of PortalState shape.
   const serializePortals = (
@@ -827,7 +833,16 @@ export default function App() {
       grantXP,
       discover,
       addMaterials: (delta: Cost) =>
-        setHud((h) => ({ ...h, materials: clampedAddDelta(h.materials, delta) })),
+        setHud((h) => {
+          const next = clampedAddDelta(h.materials, delta)
+          // a12 Crystal Heart — first crystal earned. Defer the grant via
+          // queueMicrotask: calling grantAch (which calls setHud) from inside
+          // a setHud updater is illegal in React.
+          if (h.materials.crystal === 0 && next.crystal > 0) {
+            queueMicrotask(() => grantAch("a12"))
+          }
+          return { ...h, materials: next }
+        }),
       getMaterials: () => hudRef.current.materials,
       transitionToDelve,
       transitionToOver,
@@ -1061,7 +1076,7 @@ export default function App() {
         <div className="absolute top-3 right-3 pointer-events-none">
           <div className="bg-black/40 backdrop-blur rounded-lg px-3 py-2 text-white text-xs">
             <div className="text-stone-400">Mode</div>
-            <div className="font-semibold">{hud.inDelve ? "Delve" : "Drift"}</div>
+            <div className="font-semibold">{hud.inDelve ? "Wild" : "Aether"}</div>
           </div>
         </div>
         <div className="absolute bottom-3 left-3 pointer-events-none text-white/70 text-xs space-y-0.5 bg-black/30 backdrop-blur rounded-lg px-3 py-2">
@@ -1292,6 +1307,10 @@ export default function App() {
             alreadyPicked={hud.perks}
             onPick={(id: PerkId) => {
               const perk = PERKS.find((p) => p.id === id)
+              // a13 Specialist — picking the third perk. Read pre-commit:
+              // hud.perks here is the closure-captured length (0/1/2 before
+              // this pick), and we trigger when this pick will make it 3.
+              const isThirdPerk = hud.perks.length === 2
               setHud((h) => {
                 const next: HudState = {
                   ...h,
@@ -1301,6 +1320,7 @@ export default function App() {
                 if (id === "vigor") next.maxHpBonus = h.maxHpBonus + 1
                 return next
               })
+              if (isThirdPerk) grantAch("a13")
               // Vigor — one-shot +1 max HP. Persists via maxHpBonus (saved)
               // and bumps the live player so the new pip lights up immediately.
               if (id === "vigor") {

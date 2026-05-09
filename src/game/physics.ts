@@ -654,7 +654,9 @@ export function stepGame(
         addParticles(s, stx, sty, big ? 30 : 10, ch.accent, big ? 3 : 1.5)
         cb.addMaterials(big ? { essence: 1 } : { basic: 1 })
         playSnd(big ? "big_collect" : "collect")
-        if (big) cb.grantAch("a8")
+        // a8 Summit — collecting the big-cell loot inside a delve. Scoped to
+        // the delve scene so picking up an overworld cache doesn't mis-fire it.
+        if (big && s.current === "delve") cb.grantAch("a8")
         {
           const m = cb.getMaterials()
           if (m.basic + m.essence + m.crystal >= 5) cb.grantAch("a6")
@@ -678,6 +680,8 @@ export function stepGame(
           addParticles(s, lc.x, lc.y, 16, "#a0e8ff", 2)
           playSnd("big_collect")
           portal.lostCache = null
+          // a10 Stash Reclaimed — first time recovering a death cache.
+          cb.grantAch("a10")
         }
       }
     }

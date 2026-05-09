@@ -125,17 +125,9 @@ The save loader defaults missing fields forward (`hud.hasSword ?? true`, `questS
 
 Every visual entity has a sprite slot in `src/game/sprites.ts` (`SPRITES` map). To use a custom image: `import src from "@/assets/<file>.webp"`, then `SPRITES.<name> = loadSprite(src)` at the bottom of that file. The renderer always tries the sprite first via `tryDrawSprite()` and falls back to the procedural draw if the slot is `null`. Slots cover: `player`, all four enemies (`enemy_ghost` / `_slammer` / `_spitter` / `_burrower`), both NPCs (`npc_elder` / `npc_merchant`), portals (`portal_delve` / `portal_delve_hard` / `portal_destroyed` / `portal_return`), tiles (`tile_ground` / `_grass` / `_platform` / `_ground_delve` / `_platform_delve`), pickups (`collectible` / `cache`), `projectile` (spitter orb), per-weapon slash visuals (`weapon_worn` / `weapon_forged` / `weapon_honed`), and mod auras (`aura_searing` / `aura_stormbound` / `aura_glacial` / `aura_sanguine`).
 
-## Phase C — progression & meaning (next)
+## Phase D — polish & content (next)
 
-Phase B (combat depth) is done. Phase C makes runs feel like progress:
-
-- **Death penalty**: drop a fraction of materials on death; recoverable on next clear. Adds risk to dying; today it's free.
-- **Material rarities**: differentiate drops — basic (ghost), essence (slammer), crystal (burrower). Tier-2/3 mods cost crystals so killing the right enemies matters.
-- **Level-up perks**: at hud.level 5 / 10 / 15 offer a passive choice (extra dash charge, +1 starting HP per delve, double XP from kills). Persists in save.
-- **Wider portal economy**: more portals per overworld + a regen mechanic when ALL portals are destroyed (e.g. Elder offers a "rebirth" for materials that rerolls `worldSeed`).
-- **Achievements pass**: a4/a5/a9 are wired now; sweep the rest for missing triggers.
-
-## Phase D — polish & content (after C)
+Phases A (portal visuals + Merchant), B (combat depth: 4 enemy archetypes + tiered weapons + mods + consumables), and C (rarity economy + death cache + perks + Rebirth + 13 achievements) are shipped. Phase D is the polish-and-content pass that takes the game from "fully playable" to "fit to share":
 
 - **Sprite pass**: wire `SPRITES.*` for player, all four enemies, both NPCs, weapons, auras. The slots are exposed; only need art.
 - **Audio pass**: per-archetype hit sounds, mod activation cues, ambient bed.
@@ -144,3 +136,13 @@ Phase B (combat depth) is done. Phase C makes runs feel like progress:
 - **Tutorial / first-run polish**: brief overlay teaching keys, especially the new 1/2 hotkeys.
 - **Mobile touch controls**: virtual stick + slash button (long-tail nice-to-have).
 - **Build / host**: deploy to Railway or static host with shareable URL.
+
+## Completed phases
+
+### Phase C — progression & meaning (shipped)
+
+- **Material rarities**: drops differentiated into `{ basic, essence, crystal }` (`src/game/economy.ts`). Cumulative drop policy — every kill pays out at least basic, tougher enemies stack essence/crystal on top.
+- **Death cache**: 25% of each rarity stays on the active portal at the death tile. Re-enter the same portal to reclaim it; portal seal wipes any unrecovered cache.
+- **Level-up perks**: 9-perk pool (`PERKS` table); player picks 1 at hud.level 5 / 10 / 15 via blocking modal (`src/ui/PerkPicker.tsx`). Effects dispatched in physics via `cb.hasPerk(id)` for runtime perks; one-shot perks (e.g. Vigor +1 maxHp) handled in App's onPick.
+- **Wider portal economy + Rebirth**: 6 portals per overworld (was 4). When every portal is destroyed, Elder offers Rebirth (`5 crystal + 30 essence`) which rerolls `worldSeed` while preserving level / perks / weapon / mods / cosmetics. `hud.rebirths` tracked; ♻ ×N badge shown on save manifest rows.
+- **Achievements pass**: 13 total (was 9). All a1-a9 audited; a8 Summit scoped to delve scene only. New a10-a13 cover the new systems (Stash Reclaimed, World Reborn, Crystal Heart, Specialist).
