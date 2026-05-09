@@ -125,19 +125,26 @@ The save loader defaults missing fields forward (`hud.hasSword ?? true`, `questS
 
 Every visual entity has a sprite slot in `src/game/sprites.ts` (`SPRITES` map). To use a custom image: `import src from "@/assets/<file>.webp"`, then `SPRITES.<name> = loadSprite(src)` at the bottom of that file. The renderer always tries the sprite first via `tryDrawSprite()` and falls back to the procedural draw if the slot is `null`. Slots cover: `player`, all four enemies (`enemy_ghost` / `_slammer` / `_spitter` / `_burrower`), both NPCs (`npc_elder` / `npc_merchant`), portals (`portal_delve` / `portal_delve_hard` / `portal_destroyed` / `portal_return`), tiles (`tile_ground` / `_grass` / `_platform` / `_ground_delve` / `_platform_delve`), pickups (`collectible` / `cache`), `projectile` (spitter orb), per-weapon slash visuals (`weapon_worn` / `weapon_forged` / `weapon_honed`), and mod auras (`aura_searing` / `aura_stormbound` / `aura_glacial` / `aura_sanguine`).
 
-## Phase D — polish & content (next)
+## Phase E — backend, persistence, and accounts (next)
 
-Phases A (portal visuals + Merchant), B (combat depth: 4 enemy archetypes + tiered weapons + mods + consumables), and C (rarity economy + death cache + perks + Rebirth + 13 achievements) are shipped. Phase D is the polish-and-content pass that takes the game from "fully playable" to "fit to share":
+Phases A-D are shipped. The game is locally complete and polished; Phase E pivots the project toward a multiplayer-ready backend so saves, settings, and progression can travel between devices and (later) feed leaderboards / shared world state. The local-first behavior keeps working unchanged when offline:
 
-- **Sprite pass**: wire `SPRITES.*` for player, all four enemies, both NPCs, weapons, auras. The slots are exposed; only need art.
-- **Audio pass**: per-archetype hit sounds, mod activation cues, ambient bed.
-- **Save manifest UX**: filter / sort / delete confirmation; show world seed on rows.
-- **Settings**: rebindable keys, audio volume sliders, fullscreen toggle.
-- **Tutorial / first-run polish**: brief overlay teaching keys, especially the new 1/2 hotkeys.
-- **Mobile touch controls**: virtual stick + slash button (long-tail nice-to-have).
-- **Build / host**: deploy to Railway or static host with shareable URL.
+- **Postgres schema**: users, characters, saves (binary blob + metadata), achievements, leaderboards. SQL migrations.
+- **API server**: Node (Express v5, ESM), JWT auth, per-user rate limiting. Endpoints for auth, save sync, manifest, achievements.
+- **Docker / docker-compose**: Postgres + API in one stack so dev environments are reproducible.
+- **Save sync**: localStorage stays the source of truth offline; on login, two-way merge with the server's manifest (last-write-wins per slot id).
+- **Settings sync**: same merge pattern for `aw:settings`. Optional — can stay local-only if it complicates UX.
+- **Railway deploy**: API + Postgres provisioned via Railway; static frontend served separately (Vite build → Railway static or alt host).
+- **Open question**: account-optional flow. The default should be "play without an account, sign up later to sync."
 
 ## Completed phases
+
+### Phase D — asset & polish (shipped)
+
+- **Sword visual + per-tier blade**: visible sheathed sword on the player's hip; draws on slash, sweeps via quadratic ease; per-tier styling (Worn grey → Forged steel → Honed mirror w/ cyan rim glow).
+- **Save manifest UX**: sort dropdown (Date / Level / Rebirths), world-seed snippet on each row, `window.confirm` delete guard.
+- **Settings**: new `src/game/settings.ts` (`aw:settings` localStorage), `SettingsMenu` with audio volume slider, mute, fullscreen toggle, and rebindable keys (capture-phase listener, conflict swap, reset-to-defaults). Master volume + mute wired through `audio.ts`. `App.tsx` keydown handler reads bindings live from `settingsRef`.
+- **First-run tutorial**: `TutorialOverlay` welcome card mounts on first transition into play (`localStorage["aw:hasPlayedBefore"]`); reads bindings from settings so rebound keys reflect. Re-trigger from SettingsMenu via "Show tutorial on next start" (one-shot — flips back to false on dismiss). Loop is frozen via `tutorialRef`; the dismissal keypress is swallowed so it doesn't bleed into gameplay.
 
 ### Phase C — progression & meaning (shipped)
 

@@ -41,6 +41,7 @@ import {
 } from "@/ui/screens"
 import { PerkPicker } from "@/ui/PerkPicker"
 import { SettingsMenu, formatKey } from "@/ui/SettingsMenu"
+import { TutorialOverlay } from "@/ui/TutorialOverlay"
 import type {
   AppNotification,
   AppScene,
@@ -136,6 +137,16 @@ export default function App() {
   // stack on top of the picker.
   const perkPendingRef = useRef<boolean>(false)
   perkPendingRef.current = hud.pendingPerkChoice !== null
+  // First-run tutorial. Shown on the player's first transition into "play"
+  // (gated by localStorage["aw:hasPlayedBefore"]) or whenever
+  // settings.showTutorialNextStart is true (one-shot re-trigger from
+  // SettingsMenu). tutorialRef mirrors the state for the imperative loop AND
+  // the global keydown handler — while open, the keydown handler dismisses
+  // the overlay and returns early so the dismissal keypress doesn't double as
+  // a gameplay input.
+  const [tutorialOpen, setTutorialOpen] = useState<boolean>(false)
+  const tutorialRef = useRef<boolean>(false)
+  tutorialRef.current = tutorialOpen
 
   // Apply persisted audio settings once on boot so the WebAudio master volume
   // and mute flag match what the user saved last session. The mute checkbox in
@@ -571,6 +582,46 @@ export default function App() {
     return () => window.clearInterval(handle)
   }, [scene, autosave])
 
+  // Dismiss the first-run tutorial. Persists the "has played" flag so the
+  // overlay won't appear automatically next session, and clears the one-shot
+  // re-trigger flag if it was set. Idempotent — safe to call from button,
+  // backdrop, or keydown.
+  const dismissTutorial = useCallback((): void => {
+    try {
+      localStorage.setItem("aw:hasPlayedBefore", "1")
+    } catch {
+      // Quota / privacy mode — silent fall-through. The overlay still won't
+      // re-mount this session because tutorialOpen is going to false below.
+    }
+    if (settingsRef.current.showTutorialNextStart) {
+      const next = { ...settingsRef.current, showTutorialNextStart: false }
+      settingsRef.current = next
+      setSettings(next)
+      saveSettings(next)
+    }
+    setTutorialOpen(false)
+  }, [])
+
+  // First-play detection. Fires on each transition INTO scene === "play".
+  // Mounts the overlay when either:
+  //   - localStorage["aw:hasPlayedBefore"] is missing (first-ever launch), OR
+  //   - settings.showTutorialNextStart was checked in SettingsMenu (one-shot)
+  // Either condition triggers a single mount; dismissTutorial clears both.
+  useEffect(() => {
+    if (scene !== "play") return
+    let hasPlayedBefore = false
+    try {
+      hasPlayedBefore = localStorage.getItem("aw:hasPlayedBefore") === "1"
+    } catch {
+      // localStorage blocked — treat as first-play so the user still sees
+      // the help once per session. No persistence available either way.
+    }
+    const showRequested = settingsRef.current.showTutorialNextStart
+    if (!hasPlayedBefore || showRequested) {
+      setTutorialOpen(true)
+    }
+  }, [scene])
+
   const startGameFresh = useCallback((): void => {
     // Roll a fresh world seed for this save — controls overworld terrain,
     // portal positions, NPC placement. Persists in saves.
@@ -779,6 +830,17 @@ export default function App() {
     }
     const down = (e: KeyboardEvent): void => {
       if (isEditable(e.target)) return
+      // Tutorial overlay is modal — any keypress dismisses it AND swallows
+      // the event so the user's first key doesn't both close the tutorial
+      // and trigger gameplay (e.g. "Space" would jump on the same press).
+      // Repeats are ignored so holding a key doesn't fire over and over.
+      if (tutorialRef.current) {
+        if (!e.repeat) {
+          e.preventDefault()
+          dismissTutorial()
+        }
+        return
+      }
       const k = e.key
       const b = settingsRef.current.keys
       // Rebindable game inputs — read from the live settings ref each press
@@ -968,7 +1030,11 @@ export default function App() {
         raf = requestAnimationFrame(loop)
         return
       }
-      const frozen = pausedRef.current || dialogRef.current !== null || perkPendingRef.current
+      const frozen =
+        pausedRef.current ||
+        dialogRef.current !== null ||
+        perkPendingRef.current ||
+        tutorialRef.current
       if (!frozen) {
         accumulator += frame
         let ticks = 0
@@ -987,9 +1053,9 @@ export default function App() {
         accumulator = 0
         draw(ctx, s, charRef.current, 1)
       } else {
-        // Dialog open — same draw behavior as the perk-picker arm, but kept
-        // distinct so the intent is documented and not load-bearing on
-        // branch order.
+        // Dialog or tutorial open — same draw behavior as the perk-picker
+        // arm, but kept distinct so the intent is documented and not
+        // load-bearing on branch order.
         accumulator = 0
         draw(ctx, s, charRef.current, 1)
       }
@@ -1438,6 +1504,7 @@ export default function App() {
             }}
           />
         )}
+        {tutorialOpen && <TutorialOverlay settings={settings} onDismiss={dismissTutorial} />}
       </div>
     </div>
   )

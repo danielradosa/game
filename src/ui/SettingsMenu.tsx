@@ -200,6 +200,20 @@ export function SettingsMenu({ initial, onApply, onBack }: SettingsMenuProps) {
             Browsers don't allow auto-entering fullscreen on load — your preference is
             remembered, but you'll re-enter manually each session.
           </p>
+          {/* One-shot tutorial re-trigger. Checked here, the welcome overlay
+              mounts on the next entry into "play" and the flag flips back to
+              false on dismiss (so it doesn't fire repeatedly). */}
+          <label className="flex items-center gap-2 text-sm cursor-pointer pt-2">
+            <input
+              type="checkbox"
+              checked={settings.showTutorialNextStart}
+              onChange={(e) =>
+                setSettings((s) => ({ ...s, showTutorialNextStart: e.target.checked }))
+              }
+              className="accent-orange-300"
+            />
+            <span>Show tutorial on next start</span>
+          </label>
         </div>
 
         {/* Controls panel — interactive rebinding. */}
