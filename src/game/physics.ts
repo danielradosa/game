@@ -562,6 +562,10 @@ export function stepGame(
           inp.interactEdge = false
           cb.openDialog("elder")
         }
+        if (c === "M" && inp.interactEdge) {
+          inp.interactEdge = false
+          cb.openDialog("merchant")
+        }
         if (c === "p" && inp.interactEdge) {
           inp.interactEdge = false
           // The "p" tile's grid coords double as the portal's stable id —

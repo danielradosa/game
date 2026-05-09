@@ -18,6 +18,9 @@ export interface HudState {
   hasSword: boolean
   questStage: QuestStage
   mods: string[] // crafted mod ids (see data.ts MODS)
+  // Permanent +max-HP buffs purchased from the Merchant. Applied to p.maxHp
+  // wherever the live player is initialized (start, load, scene transition).
+  maxHpBonus: number
 }
 
 // What gets serialized into one save slot.

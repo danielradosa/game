@@ -60,6 +60,7 @@ export default function App() {
     hasSword: false,
     questStage: "intro",
     mods: [],
+    maxHpBonus: 0,
   })
   const [hp, setHp] = useState<number>(PLAYER_MAX_HP)
   const [dialogNpc, setDialogNpc] = useState<NpcId | null>(null)
@@ -407,6 +408,7 @@ export default function App() {
       hasSword: false,
       questStage: "intro",
       mods: [],
+      maxHpBonus: 0,
     })
     setHp(PLAYER_MAX_HP)
     setNotifs([])
@@ -505,14 +507,23 @@ export default function App() {
       // Older saves predate the quest/mods/sword fields — default forward
       // (sword granted, quest pre-completed, no mods) so the run remains
       // playable without forcing a re-do.
+      const maxHpBonus = data.hud.maxHpBonus ?? 0
       setHud({
         ...data.hud,
         hasSword: data.hud.hasSword ?? true,
         questStage: data.hud.questStage ?? "done",
         mods: data.hud.mods ?? [],
+        maxHpBonus,
         inDelve: data.pos.scene === "delve",
       })
-      setHp(PLAYER_MAX_HP)
+      // Apply HP bonus to the live player so the loaded run starts with the
+      // upgraded cap. setHp pushes the new value into React for the HUD.
+      const loaded = stateRef.current
+      if (loaded && maxHpBonus > 0) {
+        loaded.p.maxHp = PLAYER_MAX_HP + maxHpBonus
+        loaded.p.hp = loaded.p.maxHp
+      }
+      setHp(loaded ? loaded.p.hp : PLAYER_MAX_HP)
       setNotifs([])
       setPaused(false)
       setShowInv(false)
@@ -866,6 +877,7 @@ export default function App() {
         )}
         {dialogNpc !== null && (
           <DialogPanel
+            npc={dialogNpc}
             hud={hud}
             onClose={() => setDialogNpc(null)}
             onAcceptQuest={() => {
@@ -905,6 +917,36 @@ export default function App() {
               }))
               pushNotif("Forged: " + mod.name + " · -" + mod.cost + " materials", "ach")
               playSnd("big_collect")
+            }}
+            onBuyMaxHp={() => {
+              const cost = 5
+              const cap = 2
+              if (hudRef.current.maxHpBonus >= cap) {
+                pushNotif("Already at max", "xp")
+                return
+              }
+              if (hudRef.current.materials < cost) {
+                pushNotif(
+                  `Need ${cost} materials (have ${hudRef.current.materials})`,
+                  "xp",
+                )
+                playSnd("land")
+                return
+              }
+              setHud((h) => ({
+                ...h,
+                materials: h.materials - cost,
+                maxHpBonus: h.maxHpBonus + 1,
+              }))
+              // Apply to live player too so HP cap is immediate, not next-load.
+              const liveS = stateRef.current
+              if (liveS) {
+                liveS.p.maxHp += 1
+                liveS.p.hp = liveS.p.maxHp
+                setHp(liveS.p.hp)
+              }
+              pushNotif("Max HP +1 — heart restored", "ach")
+              playSnd("level_up")
             }}
           />
         )}

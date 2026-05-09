@@ -77,6 +77,12 @@ export function generateOverworld(seed: number): OverworldLevel {
   const npcX = findFlatSpot([8, 30]) ?? 10
   m[g[npcX]! - 1]![npcX] = "n"
 
+  // Merchant — placed somewhere in the middle bands so the player encounters
+  // them naturally on the way to a portal. Independent flat-spot search; the
+  // taken[] de-dupe makes sure they're not on top of the Elder or a portal.
+  const merchantX = findFlatSpot([35, 90]) ?? 50
+  m[g[merchantX]! - 1]![merchantX] = "M"
+
   // Try for 4 portals across the width. If a band fails (too few flats), the
   // returned null is replaced with a fallback x in that band.
   const portalBands: [number, number][] = [

@@ -7,7 +7,8 @@
 //   "n" NPC    · "p" portal-to-delve   · "r" portal-to-overworld  · " " empty
 // "X" is rubble — what a destroyed delve portal becomes after the coin flip
 // seals it shut. Inert: no interact, not solid, just a visual marker.
-export type TileChar = "#" | "=" | "c" | "C" | "n" | "p" | "r" | "X" | " "
+// "M" is the Merchant NPC, distinct from "n" (Elder) so dialog can branch.
+export type TileChar = "#" | "=" | "c" | "C" | "n" | "M" | "p" | "r" | "X" | " "
 
 export type Theme = "over" | "delve"
 export type SceneId = "over" | "delve"
@@ -274,4 +275,4 @@ export interface PhysicsCallbacks {
   getMods: () => readonly string[]
 }
 
-export type NpcId = "elder"
+export type NpcId = "elder" | "merchant"

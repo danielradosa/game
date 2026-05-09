@@ -13,7 +13,7 @@ import {
 import { xpForLevel } from "@/game/constants"
 import { playSnd } from "@/game/audio"
 import CharacterPreview from "@/ui/CharacterPreview"
-import type { Character } from "@/game/types/physics"
+import type { Character, NpcId } from "@/game/types/physics"
 import type { HudState, SaveManifest } from "@/game/types/save"
 
 interface MainMenuProps {
@@ -544,21 +544,84 @@ export function InventoryPanel({ hud, character, onClose }: InventoryPanelProps)
 }
 
 interface DialogPanelProps {
+  npc: NpcId
   hud: HudState
   onClose: () => void
   onAcceptQuest: () => void
   onTurnInQuest: () => void
   onCraft: (modId: string) => void
+  onBuyMaxHp: () => void
 }
 
+// Merchant constants — kept inline (not in data.ts) since they're trivial and
+// only the merchant cares. If a second offering ever lands, hoist to data.ts.
+const MERCHANT_HP_COST = 5
+const MERCHANT_HP_MAX_BONUS = 2 // cap so HP doesn't grow unbounded
+
 export function DialogPanel({
+  npc,
   hud,
   onClose,
   onAcceptQuest,
   onTurnInQuest,
   onCraft,
+  onBuyMaxHp,
 }: DialogPanelProps) {
-  // Dialog text is derived from hud.questStage so we never desync from save state.
+  if (npc === "merchant") {
+    const atCap = hud.maxHpBonus >= MERCHANT_HP_MAX_BONUS
+    const affordable = hud.materials >= MERCHANT_HP_COST
+    const text = atCap
+      ? "You are full of vigor, friend. Nothing more I can offer."
+      : "Steel for the soul, traveler. Five materials buys you another beat of the heart."
+    return (
+      <div className="absolute inset-0 bg-black/70 backdrop-blur-sm flex items-end justify-center p-6">
+        <div className="bg-stone-900/95 border border-emerald-900 rounded-xl p-6 max-w-2xl w-full shadow-2xl">
+          <div className="flex justify-between items-start mb-3">
+            <div className="text-emerald-200 font-bold text-lg">The Merchant</div>
+            <button onClick={onClose} className="text-stone-400 hover:text-white">
+              ✕
+            </button>
+          </div>
+          <p className="text-stone-200 leading-relaxed mb-5">{text}</p>
+          {!atCap && (
+            <div className="mb-5">
+              <div className="text-xs text-stone-400 uppercase tracking-wider mb-2">
+                Stall — {hud.materials} materials
+              </div>
+              <button
+                disabled={!affordable}
+                onClick={onBuyMaxHp}
+                className={
+                  "w-full text-left p-3 rounded-lg border transition " +
+                  (affordable
+                    ? "bg-stone-800 border-stone-700 hover:border-emerald-300/60 hover:bg-stone-800/80"
+                    : "bg-stone-900 border-stone-800 opacity-50 cursor-not-allowed")
+                }
+              >
+                <div className="font-semibold text-sm text-stone-100">+1 Max HP</div>
+                <div className="text-xs text-stone-400 mt-0.5">
+                  Permanent. Currently +{hud.maxHpBonus}/{MERCHANT_HP_MAX_BONUS}.
+                </div>
+                <div className="text-[10px] text-stone-500 mt-1">
+                  Cost: {MERCHANT_HP_COST} materials
+                </div>
+              </button>
+            </div>
+          )}
+          <div className="flex gap-2 justify-end">
+            <button
+              onClick={onClose}
+              className="bg-stone-700 text-stone-200 font-semibold px-4 py-2 rounded-lg text-sm hover:bg-stone-600"
+            >
+              Leave
+            </button>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  // Elder dialog. Dialog text derived from hud.questStage so we never desync from save state.
   const stage = hud.questStage
   const text =
     stage === "intro"

@@ -316,28 +316,53 @@ function drawEntities(ctx: Ctx, s: GameState): void {
         ctx.fill()
         ctx.restore()
       } else if (c === "p") {
+        // Portal tier-aware visual. Tier 0 = purple/cool (current), tier 1+
+        // = red/menacing hardmode glow + label change. portalId is "<tx>,<ty>"
+        // (matching cb.transitionToDelve / s.portals key).
         const cx = x + TILE_SIZE / 2,
           by = y + TILE_SIZE
-        if (!tryDrawSprite(ctx, "portal_delve", cx, by)) {
-          const cy = y + TILE_SIZE / 2
+        const portalId = `${tx},${ty}`
+        const portal = s.portals.get(portalId)
+        const tier = portal?.tier ?? 0
+        const cy = y + TILE_SIZE / 2
+        if (tier === 0 && tryDrawSprite(ctx, "portal_delve", cx, by)) {
+          // sprite path — fresh tier 0 only; hardmode skips sprite to read
+          // visually distinct without needing custom art.
+        } else {
           ctx.save()
+          // Pick a glow palette per tier. Tier 0 = lavender, tier 1+ = blood.
+          const glow =
+            tier > 0 ? [255, 70, 70] : [160, 100, 220]
+          const core = tier > 0 ? "#3a0a0a" : "#1a0a2a"
           for (let i = 3; i >= 0; i--) {
             const r = 20 + i * 6 + Math.sin(s.time * 0.005 + i) * 3
-            ctx.fillStyle = "rgba(160,100,220," + (0.15 + i * 0.05) + ")"
+            ctx.fillStyle = `rgba(${glow[0]},${glow[1]},${glow[2]},${0.15 + i * 0.06})`
             ctx.beginPath()
             ctx.ellipse(cx, cy - 8, r * 0.7, r, 0, 0, Math.PI * 2)
             ctx.fill()
           }
-          ctx.fillStyle = "#1a0a2a"
+          ctx.fillStyle = core
           ctx.beginPath()
           ctx.ellipse(cx, cy - 8, 14, 22, 0, 0, Math.PI * 2)
           ctx.fill()
+          // Hardmode jitter — quick flickering motes orbit the rift.
+          if (tier > 0) {
+            for (let i = 0; i < 6; i++) {
+              const ang = s.time * 0.02 + (i * Math.PI) / 3
+              const mx = cx + Math.cos(ang) * 22
+              const my = cy - 8 + Math.sin(ang) * 26
+              ctx.fillStyle = "rgba(255,180,80,0.7)"
+              ctx.beginPath()
+              ctx.arc(mx, my, 1.6, 0, Math.PI * 2)
+              ctx.fill()
+            }
+          }
           ctx.restore()
         }
-        ctx.fillStyle = "rgba(255,255,255,0.85)"
+        ctx.fillStyle = tier > 0 ? "rgba(255,160,160,0.95)" : "rgba(255,255,255,0.85)"
         ctx.font = "12px sans-serif"
         ctx.textAlign = "center"
-        ctx.fillText("[E] Enter Delve", cx, y - 8)
+        ctx.fillText(tier > 0 ? "[E] Hardmode Delve" : "[E] Enter Delve", cx, y - 8)
       } else if (c === "r") {
         const cx = x + TILE_SIZE / 2,
           by = y + TILE_SIZE
@@ -402,6 +427,29 @@ function drawEntities(ctx: Ctx, s: GameState): void {
         ctx.font = "12px sans-serif"
         ctx.textAlign = "center"
         ctx.fillText("[E] Talk", cx, y - 8)
+      } else if (c === "M") {
+        // Merchant — green-cloaked silhouette with a bronze trim, distinct
+        // from the Elder's purple. Procedural draw only for now.
+        const cx = x + TILE_SIZE / 2,
+          by = y + TILE_SIZE - 4
+        ctx.fillStyle = "#202a30"
+        ctx.beginPath()
+        ctx.ellipse(cx, by + 2, 10, 3, 0, 0, Math.PI * 2)
+        ctx.fill()
+        ctx.fillStyle = "#3a6a4a"
+        ctx.fillRect(cx - 8, by - 22, 16, 18)
+        ctx.fillStyle = "#c8a050"
+        ctx.fillRect(cx - 8, by - 12, 16, 2)
+        ctx.fillStyle = "#e8c1a0"
+        ctx.beginPath()
+        ctx.arc(cx, by - 28, 7, 0, Math.PI * 2)
+        ctx.fill()
+        ctx.fillStyle = "#1a1a1a"
+        ctx.fillRect(cx - 6, by - 33, 12, 5)
+        ctx.fillStyle = "rgba(255,255,255,0.85)"
+        ctx.font = "12px sans-serif"
+        ctx.textAlign = "center"
+        ctx.fillText("[E] Trade", cx, y - 8)
       }
     }
 }
