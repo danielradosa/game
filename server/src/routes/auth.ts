@@ -14,14 +14,18 @@ import { Errors } from "../errors.js"
 
 function setSessionCookie(reply: FastifyReply, token: string): void {
   const env = reply.server.env
-  reply.setCookie(env.SESSION_COOKIE_NAME, token, {
+  // Build options conditionally so we don't pass `domain: undefined` —
+  // exactOptionalPropertyTypes rejects that. When COOKIE_DOMAIN is unset,
+  // omit the property entirely; the cookie defaults to the request host.
+  const opts = {
     httpOnly: true,
-    sameSite: "lax",
+    sameSite: "lax" as const,
     secure: env.COOKIE_SECURE,
     path: "/",
-    domain: env.COOKIE_DOMAIN || undefined,
     maxAge: env.SESSION_TTL_DAYS * 24 * 60 * 60,
-  })
+    ...(env.COOKIE_DOMAIN ? { domain: env.COOKIE_DOMAIN } : {}),
+  }
+  reply.setCookie(env.SESSION_COOKIE_NAME, token, opts)
 }
 
 async function createSession(app: FastifyInstance, userId: string): Promise<string> {

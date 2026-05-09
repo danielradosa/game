@@ -1,0 +1,34 @@
+# Server Docker build context = repo root. This ignores everything the
+# server doesn't need so the build context stays small.
+node_modules
+**/node_modules
+dist
+**/dist
+.git
+.DS_Store
+*.log
+.env
+.env.*
+!.env.example
+
+# Frontend code - the server doesn't need it.
+public
+index.html
+vite.config.js
+vite.config.ts
+tailwind.config.js
+postcss.config.js
+src/App.tsx
+src/main.tsx
+src/index.css
+src/assets
+src/ui
+src/game
+src/auth
+src/net
+src/sync
+
+# Plans / docs / non-runtime
+.planning
+docs
+*.md

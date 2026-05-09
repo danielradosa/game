@@ -2,7 +2,9 @@ node_modules
 dist
 .DS_Store
 *.log
-package-lock.json
+# Only ignore the root package-lock.json. /server/package-lock.json is
+# tracked so Railway's docker build can use `npm ci`.
+/package-lock.json
 
 # Environment files — repo is public, never commit secrets
 .env

@@ -1106,7 +1106,7 @@ function AppContents() {
         return true
       },
       setHp,
-      onDeath: () => pushNotif("You fell — respawning", "xp"),
+      onDeath: () => pushNotif("You died - respawning...", "xp"),
       notify: pushNotif,
       openDialog: (id) => setDialogNpc(id),
       onDelveClear: () => {
