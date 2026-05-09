@@ -605,7 +605,13 @@ export default function App() {
       autosave()
     }
     const handle = window.setInterval(tick, 20_000)
-    return () => window.clearInterval(handle)
+    return () => {
+      window.clearInterval(handle)
+      // Capture latest position on exit so Continue resumes where the player
+      // actually left off, not at the last 20s tick. autosave() guards on
+      // stateRef.current so it's a no-op if state was already torn down.
+      autosave()
+    }
   }, [scene, autosave])
 
   // Dismiss the first-run tutorial. Persists the "has played" flag so the
