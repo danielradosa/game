@@ -125,17 +125,26 @@ The save loader defaults missing fields forward (`hud.hasSword ?? true`, `questS
 
 Every visual entity has a sprite slot in `src/game/sprites.ts` (`SPRITES` map). To use a custom image: `import src from "@/assets/<file>.webp"`, then `SPRITES.<name> = loadSprite(src)` at the bottom of that file. The renderer always tries the sprite first via `tryDrawSprite()` and falls back to the procedural draw if the slot is `null`. Slots cover: `player`, all four enemies (`enemy_ghost` / `_slammer` / `_spitter` / `_burrower`), both NPCs (`npc_elder` / `npc_merchant`), portals (`portal_delve` / `portal_delve_hard` / `portal_destroyed` / `portal_return`), tiles (`tile_ground` / `_grass` / `_platform` / `_ground_delve` / `_platform_delve`), pickups (`collectible` / `cache`), `projectile` (spitter orb), per-weapon slash visuals (`weapon_worn` / `weapon_forged` / `weapon_honed`), and mod auras (`aura_searing` / `aura_stormbound` / `aura_glacial` / `aura_sanguine`).
 
-## Phase E — backend, persistence, and accounts (next)
+## Phase E — backend, accounts, progress sync (next, design draft)
 
-Phases A-D are shipped. The game is locally complete and polished; Phase E pivots the project toward a multiplayer-ready backend so saves, settings, and progression can travel between devices and (later) feed leaderboards / shared world state. The local-first behavior keeps working unchanged when offline:
+Phases A-D are shipped + post-D polish (combat rebalance, health-bar resize, item-only-in-Wild gate, WASD defaults, Esc cascade, dialog scroll, discovered dedup, Aether/Wild rename). Phase E pivots toward a service-backed multiplayer-ready architecture so saves and progression travel between devices.
 
-- **Postgres schema**: users, characters, saves (binary blob + metadata), achievements, leaderboards. SQL migrations.
-- **API server**: Node (Express v5, ESM), JWT auth, per-user rate limiting. Endpoints for auth, save sync, manifest, achievements.
-- **Docker / docker-compose**: Postgres + API in one stack so dev environments are reproducible.
-- **Save sync**: localStorage stays the source of truth offline; on login, two-way merge with the server's manifest (last-write-wins per slot id).
-- **Settings sync**: same merge pattern for `aw:settings`. Optional — can stay local-only if it complicates UX.
-- **Railway deploy**: API + Postgres provisioned via Railway; static frontend served separately (Vite build → Railway static or alt host).
-- **Open question**: account-optional flow. The default should be "play without an account, sign up later to sync."
+**Design draft lives at `docs/superpowers/specs/2026-05-09-phase-e-design.md`** — read that BEFORE starting any implementation. It calls out 10 open questions (Q1–Q10) with provisional recommendations, plus risks / gotchas / out-of-scope items. The user is starting a fresh conversation specifically to walk through the questions one by one before approving the final shape.
+
+Quick summary of provisional recommendations (subject to change in the next session):
+
+- **Stack**: Fastify + Drizzle ORM + Postgres
+- **Auth**: Magic-link email (Resend) — guest-first, with optional sign-in for cloud sync
+- **Sync**: Last-write-wins per save slot, with a "cloud is newer" prompt on conflict
+- **Schema**: 4 tables (`users`, `email_links`, `saves` with `data jsonb`, `user_settings`)
+- **Hosting**: Railway for API + managed Postgres; frontend as static
+- **Repo**: Monorepo-lite — new `/server` folder for the API, frontend stays at root
+- **Auth tokens**: JWT (1d) + refresh (30d), both HTTP-only SameSite=Lax cookies
+- **Local dev**: docker-compose orchestrates Postgres + API; magic-link send mocked to stdout
+
+The local-first browser-only behavior stays intact — accounts are opt-in, anonymous play continues to work via localStorage exactly as today.
+
+**For the next conversation:** start with `gsd-resume-work` or just say "let's brainstorm Phase E" and we'll walk the spec's open questions. After alignment, write the implementation plan, then dispatch subagents per task.
 
 ## Completed phases
 
