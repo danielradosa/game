@@ -1,3 +1,22 @@
+import type { Cost } from "@/game/economy"
+import type { EnemyType } from "@/game/types/physics"
+
+interface EnemyStats {
+  w: number
+  h: number
+  hp: number
+  chaseSpeed: number
+  killXp: number
+  killDrops: Cost
+  lungeSpeed?: number
+  windupFrames?: number
+  lungeFrames?: number
+  kiteDistance?: number
+  fireInterval?: number
+  diveCooldown?: number
+  diveDuration?: number
+}
+
 export const TILE_SIZE = 36
 
 export const VIEWPORT_WIDTH = 880
@@ -57,7 +76,7 @@ export const ENEMY_STATS = {
     hp: 2,
     chaseSpeed: 1.5,
     killXp: 25,
-    killMat: 1,
+    killDrops: { basic: 1 },
   },
   slammer: {
     w: 36,
@@ -68,7 +87,7 @@ export const ENEMY_STATS = {
     windupFrames: 32,
     lungeFrames: 14,
     killXp: 60,
-    killMat: 2,
+    killDrops: { basic: 1, essence: 1 },
   },
   spitter: {
     w: 22,
@@ -78,7 +97,7 @@ export const ENEMY_STATS = {
     kiteDistance: 240, // px; spitter drifts away when player gets closer
     fireInterval: 90, // frames between shots
     killXp: 40,
-    killMat: 1,
+    killDrops: { basic: 1, essence: 1 },
   },
   burrower: {
     w: 32,
@@ -88,9 +107,9 @@ export const ENEMY_STATS = {
     diveCooldown: 180, // ticks above ground between dives
     diveDuration: 120, // ticks underground (invulnerable + tunneling toward player)
     killXp: 70,
-    killMat: 2,
+    killDrops: { basic: 1, essence: 1, crystal: 1 },
   },
-} as const
+} as const satisfies Record<EnemyType, EnemyStats>
 
 export const ENEMY_HIT_IFRAMES = 14
 export const ENEMY_KNOCKBACK = 4
