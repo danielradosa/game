@@ -57,11 +57,17 @@ draw(ctx, s, ch, alpha = accumulator / TICK_MS)
 - `render.ts` — `draw(ctx, s, ch, alpha)` renders sky → parallax → bg particles → tiles → entities → enemies → particles → player → slash → vignette. Reads the lerped player/camera (see fixed-timestep section). `drawPaused(ctx)` is the freeze-frame overlay.
 - `sprites.ts` — `SPRITES` (image map, all `null` by default), `ASSET_SIZES` (sizing contract), `tryDrawSprite()`, `isReady()` type-predicate. Renderer falls back to procedural drawing when a sprite isn't loaded. **All character sprites must face right; the renderer mirrors automatically.**
 - `audio.ts` — `playSnd(name)` / `setMuted()`. Procedural WebAudio by default; replace `SOUNDS[x]` with an `Audio()` element to use a file.
-- `save.ts` — localStorage persistence under `drift:save:*` and `drift:save_manifest`. Per-save data is `{ character, hud, pos, collected[], defeatedEnemies[], delveCleared, delveSeed?, delveTier?, portalDestroyed? }`; manifest is the index shown in the load menu. A reserved `"autosave"` slot is overwritten in place every 20s while playing (skipped while paused / in dialog / out of `play` scene).
+- `save.ts` — localStorage persistence under `drift:save:*` and `drift:save_manifest`. Per-save data is `{ character, hud, pos, collected[], defeatedEnemies[], delveCleared, delveSeed?, delveTier?, portals?: Record<portalId, PortalStateSerialized>, activePortalId?, portalDestroyed? (deprecated, migrated forward) }`; manifest is the index shown in the load menu. A reserved `"autosave"` slot is overwritten in place every 20s while playing (skipped while paused / in dialog / out of `play` scene).
 
 ### Portal state machine
 
-The overworld portal is a single-state machine. Entry is allowed iff `s.portalDestroyed === false`. The delve persists across in/out trips (no regen on entry) so the player can leave and return mid-clear without losing progress. The state transitions on the **cleared exit** (player walks into `r` after `delveCleared` was set):
+Multiple delve portals are scattered across the overworld (currently hand-placed at x=30/60/85/105 in `buildOverworld()`). Each carries its own independent state machine, keyed by `"<tx>,<ty>"` derived from the `p` tile's grid coords. The state lives in `s.portals: Map<string, PortalState>`:
+
+```ts
+PortalState = { seed, tier, status: "fresh" | "destroyed", defeatedEnemies[], cleared }
+```
+
+`s.activePortalId` tracks which portal the player is currently inside. Physics passes the interacted tile's coords into `cb.transitionToDelve(portalId)`; App looks up the state, regenerates `s.dl` from `(seed, tier)`, and restores per-portal progress (defeats / cleared) into `s.defeatedEnemies` / `s.delveCleared`. On exit, the current session's progress is snapshotted back into the portal entry. The state transitions on **cleared exit**:
 
 ```
 [fresh, tier=N] --(clear + exit)--> 50% [fresh, tier=N+1, new seed] (hardmode)
@@ -69,7 +75,9 @@ The overworld portal is a single-state machine. Entry is allowed iff `s.portalDe
 [destroyed] --(entry attempt)-- "The rift is sealed", no transition
 ```
 
-When the portal seals, every `"p"` tile in `s.ow.map` is mutated to `"X"` so the world matches the flag. On load with `portalDestroyed=true`, the freshly-built overworld map gets the same `"p" → "X"` replay applied before `makeInitialState`. The hardmode regen reuses `generateDelve(freshSeed(), prevTier+1)` and wipes `defeatedEnemies` / `delveCleared` / delve-scoped `collected` keys.
+When a portal seals, only THAT portal's `"p"` tile mutates to `"X"`. On load, the saved `portals` Record rehydrates into a Map and every `status: "destroyed"` portal replays its tile mutation against the freshly-built `ow.map`. Old single-portal saves with `portalDestroyed: true` migrate forward by marking every `p` tile destroyed.
+
+Delve `collected` keys are namespaced as `"delve:<portalId>:<tx>,<ty>"` so two portals can't collide on the same tile coords.
 - `data.ts` — static tables (`ZONES`, `ACHIEVEMENTS`, `SKINS`, `HAIRS`, `SHIRTS`, `PANTS`, `ACCENTS`, `PROPOSED_MODS`, `MODS`). Each table uses `as const satisfies readonly T[]` so the literal types survive, and `ZoneId` / `AchievementId` / `ModId` are derived via `(typeof TABLE)[number]["id"]` — adding a row widens the union automatically.
 - `types/{physics,data,sprites,save}.ts` — type contracts shared across the engine.
 

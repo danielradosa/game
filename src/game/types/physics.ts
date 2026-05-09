@@ -177,6 +177,19 @@ export interface Enemy {
   bob: number // visual oscillation phase
 }
 
+// ===== Portal state machine =====
+// One per overworld portal tile. seed + tier identify the delve layout;
+// defeatedEnemies + cleared remember per-portal progress so re-entering the
+// same portal restores where you left off. status flips to "destroyed" on
+// the coin-flip and the portal becomes inert (renders as "X" rubble).
+export interface PortalState {
+  seed: number
+  tier: number
+  status: "fresh" | "destroyed"
+  defeatedEnemies: number[]
+  cleared: boolean
+}
+
 // ===== Game state =====
 // The big mutable blob. physics.stepGame mutates it; render.draw reads it.
 export interface GameState {
@@ -189,9 +202,16 @@ export interface GameState {
   prevCamY: number
   p: PlayerState
   enemies: Enemy[] // active for the current scene; rebuilt on transition
-  defeatedEnemies: Set<number> // delve spawnIndex values, persistent for the run
-  delveCleared: boolean // true once every delve enemy has been defeated
-  portalDestroyed: boolean // overworld portal has been sealed forever (coin flip on cleared exit)
+  // CURRENT delve session's progress. On portal entry these are restored from
+  // the active portal's PortalState; on exit they're snapshotted back. Each
+  // portal has its own independent delve persistence.
+  defeatedEnemies: Set<number>
+  delveCleared: boolean
+  // Per-portal state machine. Key = "<tx>,<ty>" of the portal tile in the
+  // overworld map. activePortalId is set when inside a delve and used as the
+  // target of the coin-flip on cleared exit.
+  portals: Map<string, PortalState>
+  activePortalId: string | null
   hitStop: number // when > 0, physics ticks freeze for this many frames (impact pause)
   collected: Set<string> // "<scene>:<tx>,<ty>" keys of pickups already grabbed
   particles: Particle[]
@@ -237,7 +257,9 @@ export interface PhysicsCallbacks {
   discover: (zoneId: ZoneId) => void
   addMaterials: (n: number) => void
   getMaterials: () => number
-  transitionToDelve: () => void
+  // portalId is "<tx>,<ty>" of the interacted "p" tile. App uses it as the key
+  // into s.portals to look up / mutate the per-portal state.
+  transitionToDelve: (portalId: string) => void
   transitionToOver: () => void
   hasSword: () => boolean
   setHp: (hp: number) => void

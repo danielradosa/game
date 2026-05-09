@@ -518,31 +518,35 @@ function drawPlayer(ctx: Ctx, s: GameState, ch: Character): void {
   ctx.fillStyle = ch.skin
   ctx.fillRect(-bodyW / 2 - 4, -bodyH * 0.42 + armSwing, 5, 4)
   ctx.fillRect(bodyW / 2 - 1, -bodyH * 0.42 - armSwing, 5, 4)
+  // Neck — small skin column between the torso top (~-0.78·bodyH) and the
+  // head's lifted bottom (~-1.07·bodyH). Without this the head rests directly
+  // on the shoulder line and reads as a balaclava.
   ctx.fillStyle = ch.skin
+  ctx.fillRect(-3, -bodyH * 0.91, 6, bodyH * 0.13)
   ctx.beginPath()
-  ctx.arc(0, -bodyH * 0.86, 8, 0, Math.PI * 2)
+  ctx.arc(0, -bodyH * 1.15, 8, 0, Math.PI * 2)
   ctx.fill()
   ctx.fillStyle = ch.hair
   if (ch.hairStyle === "short") {
     ctx.beginPath()
-    ctx.arc(0, -bodyH * 0.92, 8, Math.PI, 0)
+    ctx.arc(0, -bodyH * 1.21, 8, Math.PI, 0)
     ctx.fill()
   } else if (ch.hairStyle === "med") {
     ctx.beginPath()
-    ctx.arc(0, -bodyH * 0.92, 9, Math.PI, 0)
+    ctx.arc(0, -bodyH * 1.21, 9, Math.PI, 0)
     ctx.fill()
-    ctx.fillRect(-9, -bodyH * 0.92, 4, 8)
-    ctx.fillRect(5, -bodyH * 0.92, 4, 6)
+    ctx.fillRect(-9, -bodyH * 1.21, 4, 8)
+    ctx.fillRect(5, -bodyH * 1.21, 4, 6)
   } else {
     ctx.beginPath()
-    ctx.arc(0, -bodyH * 0.92, 9, Math.PI, 0)
+    ctx.arc(0, -bodyH * 1.21, 9, Math.PI, 0)
     ctx.fill()
-    ctx.fillRect(-9, -bodyH * 0.93, 4, 18)
-    ctx.fillRect(5, -bodyH * 0.93, 4, 18)
+    ctx.fillRect(-9, -bodyH * 1.22, 4, 18)
+    ctx.fillRect(5, -bodyH * 1.22, 4, 18)
   }
   ctx.fillStyle = "#1a1a1a"
-  ctx.fillRect(-3, -bodyH * 0.87, 1.5, 1.5)
-  ctx.fillRect(2, -bodyH * 0.87, 1.5, 1.5)
+  ctx.fillRect(-3, -bodyH * 1.16, 1.5, 1.5)
+  ctx.fillRect(2, -bodyH * 1.16, 1.5, 1.5)
   ctx.restore()
 }
 

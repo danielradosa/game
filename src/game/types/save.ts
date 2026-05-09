@@ -30,13 +30,28 @@ export interface SaveData {
     scene: SceneId
   }
   collected: string[] // "<scene>:<tx>,<ty>" keys; rehydrated into a Set on load
-  defeatedEnemies: number[] // delve spawn indices defeated this run
-  delveCleared: boolean
-  // Procedural delve identity. Optional for backwards compat with saves
-  // created before procgen landed — those default to a fresh seed on load.
+  defeatedEnemies: number[] // current delve session's defeats
+  delveCleared: boolean // current delve session's cleared flag
+  // Procedural delve identity for the CURRENT session. Optional for backwards
+  // compat with saves created before procgen landed.
   delveSeed?: number
   delveTier?: number
+  // Per-portal state machine, serialized as a Record (Maps don't JSON cleanly).
+  portals?: Record<string, PortalStateSerialized>
+  activePortalId?: string | null
+  // DEPRECATED single-portal flag from before multi-portal landed. Old saves
+  // with this set get migrated forward on load.
   portalDestroyed?: boolean
+}
+
+// Mirror of PortalState with the Set serialized as an array. Stays in sync
+// with the runtime shape in src/game/types/physics.ts.
+export interface PortalStateSerialized {
+  seed: number
+  tier: number
+  status: "fresh" | "destroyed"
+  defeatedEnemies: number[]
+  cleared: boolean
 }
 
 // One row in the load-menu list. Cheap to enumerate.

@@ -76,7 +76,12 @@ export function buildOverworld(): OverworldLevel {
 
   // NPC + portal markers. Bounds are hand-checked against the heightmap.
   m[g[6]! - 1]![6] = "n"
-  m[g[105]! - 1]![105] = "p"
+  // Multiple delve portals across the overworld. Each has independent state
+  // (seed, tier, fresh/destroyed) tracked in GameState.portals, keyed by
+  // "<tx>,<ty>". Spread out so a destroyed roll doesn't end the run.
+  for (const px of [30, 60, 85, 105]) {
+    m[g[px]! - 1]![px] = "p"
+  }
 
   return {
     map: m,

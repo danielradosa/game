@@ -48,6 +48,7 @@ import type {
   SceneId,
   Enemy,
   EnemySpawn,
+  PortalState,
 } from "@/game/types/physics"
 
 const BULLET_VX = 11.5 // bullet jump horizontal speed
@@ -505,7 +506,12 @@ export function stepGame(
       for (let tx = left; tx <= right; tx++) {
         const c = map[ty]?.[tx]
         if (c !== "c" && c !== "C") continue
-        const key = s.current + ":" + tx + "," + ty
+        // Namespace delve cells by active portal so two portals can't collide
+        // on a tx,ty key (they share the "delve" scene). Overworld stays flat.
+        const key =
+          s.current === "delve" && s.activePortalId !== null
+            ? `delve:${s.activePortalId}:${tx},${ty}`
+            : `${s.current}:${tx},${ty}`
         if (s.collected.has(key)) continue
         const stx = tx * TILE_SIZE + TILE_SIZE / 2
         const sty = ty * TILE_SIZE + TILE_SIZE / 2
@@ -551,7 +557,10 @@ export function stepGame(
         }
         if (c === "p" && inp.interactEdge) {
           inp.interactEdge = false
-          if (s.current === "over") cb.transitionToDelve()
+          // The "p" tile's grid coords double as the portal's stable id —
+          // App keys s.portals by this string and looks up the per-portal
+          // state machine.
+          if (s.current === "over") cb.transitionToDelve(`${tx},${ty}`)
         }
         if (c === "r" && inp.interactEdge) {
           inp.interactEdge = false
@@ -651,7 +660,11 @@ export function stepGame(
 
     // Player takes damage if not already invulnerable. Roll iframes also
     // grant immunity so the sword/roll combo is the intended kill cycle.
-    if (e.alive && p.damageIframes <= 0 && p.iframes <= 0) {
+    // Enemy iframes also gate the damage check — an enemy in hit-stun (i.e.
+    // we just slashed them this frame) can't damage us, which prevents the
+    // simultaneous slash-and-take-damage trade that would otherwise occur on
+    // every overlap frame against multi-hp enemies.
+    if (e.alive && e.iframes <= 0 && p.damageIframes <= 0 && p.iframes <= 0) {
       p.hp = Math.max(0, p.hp - 1)
       p.damageIframes = DAMAGE_IFRAMES
       p.vx = (pCx > eCx ? 1 : -1) * DAMAGE_KNOCKBACK_VX
@@ -725,7 +738,8 @@ export function makeInitialState(
   collected: Set<string>,
   defeated: ReadonlySet<number> = new Set<number>(),
   delveCleared = false,
-  portalDestroyed = false,
+  portals: Map<string, PortalState> = new Map(),
+  activePortalId: string | null = null,
 ): GameState {
   const lv = current === "delve" ? dl : ow
   const st: GameState = {
@@ -775,7 +789,8 @@ export function makeInitialState(
     enemies: current === "delve" ? spawnEnemiesFrom(dl.enemySpawns, defeated) : [],
     defeatedEnemies: new Set<number>(defeated),
     delveCleared,
-    portalDestroyed,
+    portals,
+    activePortalId,
     hitStop: 0,
     collected,
     particles: [],
