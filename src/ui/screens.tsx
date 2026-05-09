@@ -12,6 +12,14 @@ import {
   WEAPONS,
 } from "@/game/data"
 import { xpForLevel } from "@/game/constants"
+import { canAfford, formatCost } from "@/game/economy"
+import {
+  CONSUMABLE_CAP,
+  HEAL_COST,
+  MERCHANT_HP_COST,
+  MERCHANT_HP_MAX_BONUS,
+  STORM_COST,
+} from "@/game/shop"
 import { playSnd } from "@/game/audio"
 import CharacterPreview from "@/ui/CharacterPreview"
 import type { Character, NpcId } from "@/game/types/physics"
@@ -478,7 +486,11 @@ export function InventoryPanel({ hud, character, onClose }: InventoryPanelProps)
             <div className="text-sm text-stone-200 mt-2 space-y-1">
               <div className="flex justify-between">
                 <span>Materials</span>
-                <span className="font-semibold text-yellow-200">{hud.materials}</span>
+                <span className="font-semibold text-yellow-200">
+                  {hud.materials.basic}
+                  <span className="text-pink-200"> · {hud.materials.essence}</span>
+                  <span className="text-cyan-200"> · {hud.materials.crystal}</span>
+                </span>
               </div>
               <div className="flex justify-between">
                 <span>Areas Discovered</span>
@@ -557,16 +569,6 @@ interface DialogPanelProps {
   onBuyStorm: () => void
 }
 
-// Consumable shop tuning — kept inline since only the Merchant cares.
-const HEAL_COST = 3
-const STORM_COST = 6
-const CONSUMABLE_CAP = 5
-
-// Merchant constants — kept inline (not in data.ts) since they're trivial and
-// only the merchant cares. If a second offering ever lands, hoist to data.ts.
-const MERCHANT_HP_COST = 5
-const MERCHANT_HP_MAX_BONUS = 2 // cap so HP doesn't grow unbounded
-
 export function DialogPanel({
   npc,
   hud,
@@ -581,10 +583,10 @@ export function DialogPanel({
 }: DialogPanelProps) {
   if (npc === "merchant") {
     const atCap = hud.maxHpBonus >= MERCHANT_HP_MAX_BONUS
-    const affordable = hud.materials >= MERCHANT_HP_COST
+    const affordable = canAfford(MERCHANT_HP_COST, hud.materials)
     const text = atCap
       ? "You are full of vigor, friend. Nothing more I can offer."
-      : "Steel for the soul, traveler. Five materials buys you another beat of the heart."
+      : "Steel for the soul, traveler. Five basic buys you another beat of the heart."
     return (
       <div className="absolute inset-0 bg-black/70 backdrop-blur-sm flex items-end justify-center p-6">
         <div className="bg-stone-900/95 border border-emerald-900 rounded-xl p-6 max-w-2xl w-full shadow-2xl">
@@ -597,7 +599,8 @@ export function DialogPanel({
           <p className="text-stone-200 leading-relaxed mb-5">{text}</p>
           <div className="mb-5 space-y-3">
             <div className="text-xs text-stone-400 uppercase tracking-wider">
-              Stall — {hud.materials} materials
+              Stall — {hud.materials.basic}b · {hud.materials.essence}e ·{" "}
+              {hud.materials.crystal}c
             </div>
             {!atCap && (
               <button
@@ -615,14 +618,14 @@ export function DialogPanel({
                   Permanent. Currently +{hud.maxHpBonus}/{MERCHANT_HP_MAX_BONUS}.
                 </div>
                 <div className="text-[10px] text-stone-500 mt-1">
-                  Cost: {MERCHANT_HP_COST} materials
+                  Cost: {formatCost(MERCHANT_HP_COST)}
                 </div>
               </button>
             )}
             {/* Consumables — capped at CONSUMABLE_CAP each so the player can't
                 stockpile to invincibility. Counters live in hud.consumables. */}
             {(() => {
-              const healAffordable = hud.materials >= HEAL_COST
+              const healAffordable = canAfford(HEAL_COST, hud.materials)
               const healFull = hud.consumables.heal >= CONSUMABLE_CAP
               return (
                 <button
@@ -642,13 +645,13 @@ export function DialogPanel({
                     Press [1] mid-fight · restores 2 hearts
                   </div>
                   <div className="text-[10px] text-stone-500 mt-1">
-                    {healFull ? "Pouch is full" : `Cost: ${HEAL_COST} materials`}
+                    {healFull ? "Pouch is full" : `Cost: ${formatCost(HEAL_COST)}`}
                   </div>
                 </button>
               )
             })()}
             {(() => {
-              const stormAffordable = hud.materials >= STORM_COST
+              const stormAffordable = canAfford(STORM_COST, hud.materials)
               const stormFull = hud.consumables.storm >= CONSUMABLE_CAP
               return (
                 <button
@@ -668,7 +671,7 @@ export function DialogPanel({
                     Press [2] · electric burst, damages every enemy nearby
                   </div>
                   <div className="text-[10px] text-stone-500 mt-1">
-                    {stormFull ? "Pouch is full" : `Cost: ${STORM_COST} materials`}
+                    {stormFull ? "Pouch is full" : `Cost: ${formatCost(STORM_COST)}`}
                   </div>
                 </button>
               )
@@ -713,7 +716,8 @@ export function DialogPanel({
         {canCraft && (
           <div className="mb-5 space-y-4">
             <div className="text-xs text-stone-400 uppercase tracking-wider">
-              Forge — {hud.materials} materials
+              Forge — {hud.materials.basic}b · {hud.materials.essence}e ·{" "}
+              {hud.materials.crystal}c
             </div>
 
             {/* Weapon upgrade — single button advancing the next tier. */}
@@ -735,7 +739,7 @@ export function DialogPanel({
                   </div>
                 )
               }
-              const affordable = hud.materials >= next.cost
+              const affordable = canAfford(next.cost, hud.materials)
               return (
                 <div className="bg-stone-800/60 rounded-lg p-3 border border-stone-700">
                   <div className="text-xs text-stone-400 uppercase tracking-wider mb-1">
@@ -758,7 +762,7 @@ export function DialogPanel({
                       {next.desc} · {next.damage} damage
                     </div>
                     <div className="text-[10px] text-stone-500 mt-1">
-                      Cost: {next.cost} materials
+                      Cost: {formatCost(next.cost)}
                     </div>
                   </button>
                 </div>
@@ -777,7 +781,7 @@ export function DialogPanel({
                   <div className="grid sm:grid-cols-2 gap-2">
                     {list.map((m) => {
                       const owned = hud.mods.includes(m.id)
-                      const affordable = hud.materials >= m.cost
+                      const affordable = canAfford(m.cost, hud.materials)
                       return (
                         <button
                           key={m.id}
@@ -803,7 +807,7 @@ export function DialogPanel({
                           </div>
                           <div className="text-xs text-stone-400 mt-0.5">{m.desc}</div>
                           <div className="text-[10px] text-stone-500 mt-1">
-                            {owned ? "Equipped" : `Cost: ${m.cost} materials`}
+                            {owned ? "Equipped" : `Cost: ${formatCost(m.cost)}`}
                           </div>
                         </button>
                       )

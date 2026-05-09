@@ -560,10 +560,13 @@ export function stepGame(
           })
         }
         addParticles(s, stx, sty, big ? 30 : 10, ch.accent, big ? 3 : 1.5)
-        cb.addMaterials(big ? 5 : 1)
+        cb.addMaterials({ basic: big ? 5 : 1 })
         playSnd(big ? "big_collect" : "collect")
         if (big) cb.grantAch("a8")
-        if (cb.getMaterials() >= 5) cb.grantAch("a6")
+        {
+          const m = cb.getMaterials()
+          if (m.basic + m.essence + m.crystal >= 5) cb.grantAch("a6")
+        }
       }
   }
   {
@@ -651,7 +654,7 @@ export function stepGame(
         if (e.hp <= 0) {
           e.alive = false
           s.defeatedEnemies.add(e.spawnIndex)
-          cb.addMaterials(eStats.killMat)
+          cb.addMaterials({ basic: eStats.killMat })
           cb.grantXP(eStats.killXp, "stormed")
           if (
             s.current === "delve" &&
@@ -871,7 +874,7 @@ export function stepGame(
         e.alive = false
         s.defeatedEnemies.add(e.spawnIndex)
         addParticles(s, eCx, eCy, 24, "#c08aff", 2.2)
-        cb.addMaterials(stats.killMat)
+        cb.addMaterials({ basic: stats.killMat })
         cb.grantXP(stats.killXp, "slain")
         // Sanguine: lifesteal one heart per kill, hard-clamped to maxHp.
         if (mods.includes("sanguine")) {

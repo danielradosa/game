@@ -283,6 +283,7 @@ export type AppScene = "menu" | "about" | "loadmenu" | "creator" | "play"
 // ===== Callbacks (physics → React) =====
 // ID unions are derived from the data tables in src/game/data.ts so adding
 // or removing an entry there propagates here automatically.
+import type { Cost, Materials } from "@/game/economy"
 import type { AchievementId, ZoneId } from "@/game/data"
 
 // physics.stepGame doesn't import React. App.tsx hands it these closures so
@@ -291,8 +292,8 @@ export interface PhysicsCallbacks {
   grantAch: (id: AchievementId) => void
   grantXP: (amount: number, label?: string) => void
   discover: (zoneId: ZoneId) => void
-  addMaterials: (n: number) => void
-  getMaterials: () => number
+  addMaterials: (delta: Cost) => void
+  getMaterials: () => Materials
   // portalId is "<tx>,<ty>" of the interacted "p" tile. App uses it as the key
   // into s.portals to look up / mutate the per-portal state.
   transitionToDelve: (portalId: string) => void

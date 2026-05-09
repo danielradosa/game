@@ -12,6 +12,15 @@ import {
   WEAPONS,
 } from "@/game/data"
 import type { AchievementId, ZoneId } from "@/game/data"
+import type { Cost, Materials } from "@/game/economy"
+import { canAfford, clampedAddDelta, spend, formatMissing } from "@/game/economy"
+import {
+  CONSUMABLE_CAP,
+  HEAL_COST,
+  MERCHANT_HP_COST,
+  MERCHANT_HP_MAX_BONUS,
+  STORM_COST,
+} from "@/game/shop"
 import { generateDelve, generateOverworld } from "@/game/levels"
 import { freshSeed } from "@/game/rng"
 import {
@@ -63,7 +72,7 @@ export default function App() {
   const [hud, setHud] = useState<HudState>({
     level: 1,
     xp: 0,
-    materials: 0,
+    materials: { basic: 0, essence: 0, crystal: 0 },
     discovered: [],
     achievements: [],
     inDelve: false,
@@ -345,7 +354,12 @@ export default function App() {
       id,
       name: charRef.current.name,
       level: hudRef.current.level,
-      materials: hudRef.current.materials,
+      // SaveMeta carries a flat number for the manifest preview. Sum the
+      // rarities so the load row reflects total wealth at a glance.
+      materials:
+        hudRef.current.materials.basic +
+        hudRef.current.materials.essence +
+        hudRef.current.materials.crystal,
       discovered: hudRef.current.discovered.length,
       date: new Date().toISOString(),
       where: s.current === "delve" ? "In the Delve" : "Surface",
@@ -384,7 +398,10 @@ export default function App() {
       id,
       name: charRef.current.name + " — autosave",
       level: hudRef.current.level,
-      materials: hudRef.current.materials,
+      materials:
+        hudRef.current.materials.basic +
+        hudRef.current.materials.essence +
+        hudRef.current.materials.crystal,
       discovered: hudRef.current.discovered.length,
       date: new Date().toISOString(),
       where: s.current === "delve" ? "In the Delve" : "Surface",
@@ -430,7 +447,7 @@ export default function App() {
     setHud({
       level: 1,
       xp: 0,
-      materials: 0,
+      materials: { basic: 0, essence: 0, crystal: 0 },
       discovered: [],
       achievements: [],
       inDelve: false,
@@ -539,8 +556,16 @@ export default function App() {
       // (sword granted, quest pre-completed, no mods) so the run remains
       // playable without forcing a re-do.
       const maxHpBonus = data.hud.maxHpBonus ?? 0
+      // Migrate materials: pre-Phase-C saves stored a flat number; new saves
+      // store { basic, essence, crystal }. Old number → all goes to basic.
+      const rawMats = (data.hud as { materials?: number | Materials }).materials
+      const materials: Materials =
+        typeof rawMats === "number"
+          ? { basic: rawMats, essence: 0, crystal: 0 }
+          : (rawMats ?? { basic: 0, essence: 0, crystal: 0 })
       setHud({
         ...data.hud,
+        materials,
         hasSword: data.hud.hasSword ?? true,
         questStage: data.hud.questStage ?? "done",
         mods: data.hud.mods ?? [],
@@ -688,7 +713,8 @@ export default function App() {
       grantAch,
       grantXP,
       discover,
-      addMaterials: (n: number) => setHud((h) => ({ ...h, materials: h.materials + n })),
+      addMaterials: (delta: Cost) =>
+        setHud((h) => ({ ...h, materials: clampedAddDelta(h.materials, delta) })),
       getMaterials: () => hudRef.current.materials,
       transitionToDelve,
       transitionToOver,
@@ -843,7 +869,44 @@ export default function App() {
           </div>
           <div className="bg-black/40 backdrop-blur rounded-lg px-3 py-2 text-white text-sm">
             <div className="text-[10px] text-stone-400">Materials</div>
-            <div className="font-bold text-yellow-200">{hud.materials}</div>
+            <div className="flex flex-col gap-0.5 text-xs">
+              <div className="flex items-center gap-1">
+                <span className="inline-block w-2 h-2 rounded-full bg-stone-300" />
+                <span className="font-bold text-stone-200">{hud.materials.basic}</span>
+              </div>
+              <div className="flex items-center gap-1">
+                <span
+                  className={
+                    "inline-block w-2 h-2 rounded-full bg-pink-300 " +
+                    (hud.materials.essence === 0 ? "opacity-30" : "")
+                  }
+                />
+                <span
+                  className={
+                    "font-bold text-pink-200 " +
+                    (hud.materials.essence === 0 ? "opacity-50" : "")
+                  }
+                >
+                  {hud.materials.essence}
+                </span>
+              </div>
+              <div className="flex items-center gap-1">
+                <span
+                  className={
+                    "inline-block w-2 h-2 rounded-full bg-cyan-300 " +
+                    (hud.materials.crystal === 0 ? "opacity-30" : "")
+                  }
+                />
+                <span
+                  className={
+                    "font-bold text-cyan-200 " +
+                    (hud.materials.crystal === 0 ? "opacity-50" : "")
+                  }
+                >
+                  {hud.materials.crystal}
+                </span>
+              </div>
+            </div>
           </div>
           {/* Consumable hotkey chips — dimmed when empty so the player can
               see which keys do what at a glance. */}
@@ -985,7 +1048,11 @@ export default function App() {
               playSnd("collect")
             }}
             onTurnInQuest={() => {
-              setHud((h) => ({ ...h, questStage: "done", materials: h.materials + 5 }))
+              setHud((h) => ({
+                ...h,
+                questStage: "done",
+                materials: { ...h.materials, basic: h.materials.basic + 5 },
+              }))
               grantXP(120, "quest")
               pushNotif("Quest complete — +5 materials", "level")
               playSnd("level_up")
@@ -1001,9 +1068,9 @@ export default function App() {
                 pushNotif("Already forged", "xp")
                 return
               }
-              if (hudRef.current.materials < mod.cost) {
+              if (!canAfford(mod.cost, hudRef.current.materials)) {
                 pushNotif(
-                  `Need ${mod.cost} materials (have ${hudRef.current.materials})`,
+                  `Need ${formatMissing(mod.cost, hudRef.current.materials)} more`,
                   "xp",
                 )
                 playSnd("land")
@@ -1011,22 +1078,20 @@ export default function App() {
               }
               setHud((h) => ({
                 ...h,
-                materials: h.materials - mod.cost,
+                materials: spend(mod.cost, h.materials),
                 mods: [...h.mods, mod.id],
               }))
-              pushNotif("Forged: " + mod.name + " · -" + mod.cost + " materials", "ach")
+              pushNotif("Forged: " + mod.name, "ach")
               playSnd("big_collect")
             }}
             onBuyMaxHp={() => {
-              const cost = 5
-              const cap = 2
-              if (hudRef.current.maxHpBonus >= cap) {
+              if (hudRef.current.maxHpBonus >= MERCHANT_HP_MAX_BONUS) {
                 pushNotif("Already at max", "xp")
                 return
               }
-              if (hudRef.current.materials < cost) {
+              if (!canAfford(MERCHANT_HP_COST, hudRef.current.materials)) {
                 pushNotif(
-                  `Need ${cost} materials (have ${hudRef.current.materials})`,
+                  `Need ${formatMissing(MERCHANT_HP_COST, hudRef.current.materials)} more`,
                   "xp",
                 )
                 playSnd("land")
@@ -1034,7 +1099,7 @@ export default function App() {
               }
               setHud((h) => ({
                 ...h,
-                materials: h.materials - cost,
+                materials: spend(MERCHANT_HP_COST, h.materials),
                 maxHpBonus: h.maxHpBonus + 1,
               }))
               // Apply to live player too so HP cap is immediate, not next-load.
@@ -1053,9 +1118,9 @@ export default function App() {
                 pushNotif("Already at peak", "xp")
                 return
               }
-              if (hudRef.current.materials < next.cost) {
+              if (!canAfford(next.cost, hudRef.current.materials)) {
                 pushNotif(
-                  `Need ${next.cost} materials (have ${hudRef.current.materials})`,
+                  `Need ${formatMissing(next.cost, hudRef.current.materials)} more`,
                   "xp",
                 )
                 playSnd("land")
@@ -1063,22 +1128,20 @@ export default function App() {
               }
               setHud((h) => ({
                 ...h,
-                materials: h.materials - next.cost,
+                materials: spend(next.cost, h.materials),
                 weaponLevel: h.weaponLevel + 1,
               }))
               pushNotif(`Upgraded: ${next.name} · ${next.damage} dmg`, "ach")
               playSnd("level_up")
             }}
             onBuyHeal={() => {
-              const cost = 3
-              const cap = 5
-              if (hudRef.current.consumables.heal >= cap) {
+              if (hudRef.current.consumables.heal >= CONSUMABLE_CAP) {
                 pushNotif("Pouch full", "xp")
                 return
               }
-              if (hudRef.current.materials < cost) {
+              if (!canAfford(HEAL_COST, hudRef.current.materials)) {
                 pushNotif(
-                  `Need ${cost} materials (have ${hudRef.current.materials})`,
+                  `Need ${formatMissing(HEAL_COST, hudRef.current.materials)} more`,
                   "xp",
                 )
                 playSnd("land")
@@ -1086,22 +1149,20 @@ export default function App() {
               }
               setHud((h) => ({
                 ...h,
-                materials: h.materials - cost,
+                materials: spend(HEAL_COST, h.materials),
                 consumables: { ...h.consumables, heal: h.consumables.heal + 1 },
               }))
               pushNotif("Heal Potion +1", "ach")
               playSnd("collect")
             }}
             onBuyStorm={() => {
-              const cost = 6
-              const cap = 5
-              if (hudRef.current.consumables.storm >= cap) {
+              if (hudRef.current.consumables.storm >= CONSUMABLE_CAP) {
                 pushNotif("Pouch full", "xp")
                 return
               }
-              if (hudRef.current.materials < cost) {
+              if (!canAfford(STORM_COST, hudRef.current.materials)) {
                 pushNotif(
-                  `Need ${cost} materials (have ${hudRef.current.materials})`,
+                  `Need ${formatMissing(STORM_COST, hudRef.current.materials)} more`,
                   "xp",
                 )
                 playSnd("land")
@@ -1109,7 +1170,7 @@ export default function App() {
               }
               setHud((h) => ({
                 ...h,
-                materials: h.materials - cost,
+                materials: spend(STORM_COST, h.materials),
                 consumables: { ...h.consumables, storm: h.consumables.storm + 1 },
               }))
               pushNotif("Storm Vial +1", "ach")

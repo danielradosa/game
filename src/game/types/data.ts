@@ -3,6 +3,8 @@
 // itself via `(typeof ACHIEVEMENTS)[number]["id"]` — defining them there keeps
 // the data table the single source of truth.
 
+import type { Cost } from "@/game/economy"
+
 export interface Zone {
   id: string
   name: string
@@ -27,12 +29,14 @@ export interface ProposedMod {
 
 // Craftable mods. Effects are applied in physics.ts based on `id`. kind
 // drives forge UI grouping ("utility" = movement/magnet, "weapon" = combat).
+// tier is documentation + a slot for future cost lookups.
 export interface Mod {
   id: string
   name: string
   desc: string
-  cost: number // materials required to craft
+  cost: Cost // rarity bundle required to craft
   kind: "utility" | "weapon"
+  tier: 1 | 2 | 3
 }
 
 // Tiered weapons sold at the Elder forge. level matches HudState.weaponLevel.
@@ -41,7 +45,7 @@ export interface Weapon {
   name: string
   desc: string
   damage: number
-  cost: number // materials to upgrade TO this tier (0 for default)
+  cost: Cost // rarity bundle to upgrade TO this tier (empty for default)
 }
 
 // Color palettes for the character creator. Plain hex strings; documented

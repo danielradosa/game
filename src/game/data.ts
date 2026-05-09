@@ -134,84 +134,92 @@ export const PROPOSED_MODS = [
 // Active mods. Each id is special-cased in physics.ts where its effect lives.
 // Two flavors here: "utility" (movement, magnet) and "weapon" (combat
 // modifiers / slash visuals). The split is informal — the kind field just
-// drives which forge column the mod renders into.
+// drives which forge column the mod renders into. tier (1/2/3) gates which
+// rarities are required: t1 = basic only, t2 = +essence, t3 = +crystal.
 export const MODS = [
   {
     id: "quickfeet",
     name: "Quickfeet",
     desc: "+15% movement speed",
-    cost: 5,
+    cost: { basic: 5 },
     kind: "utility",
+    tier: 1,
   },
   {
     id: "lodestone",
     name: "Lodestone",
     desc: "Greatly extends pickup magnet radius",
-    cost: 5,
+    cost: { basic: 5 },
     kind: "utility",
+    tier: 1,
   },
   {
     id: "searing",
     name: "Searing Edge",
     desc: "Slash leaves a fire trail · +1 damage",
-    cost: 8,
+    cost: { basic: 8, essence: 2 },
     kind: "weapon",
+    tier: 2,
   },
   {
     id: "stormbound",
     name: "Stormbound",
     desc: "Crackling aura · slash reach +50%",
-    cost: 12,
+    cost: { basic: 12, essence: 4, crystal: 1 },
     kind: "weapon",
+    tier: 3,
   },
   {
     id: "sanguine",
     name: "Sanguine",
     desc: "Heal 1 HP per enemy slain",
-    cost: 15,
+    cost: { basic: 12, essence: 4, crystal: 1 },
     kind: "weapon",
+    tier: 3,
   },
   {
     id: "glacial",
     name: "Glacial Edge",
     desc: "Slash chills · 50% slower enemies for 2s",
-    cost: 10,
+    cost: { basic: 8, essence: 2 },
     kind: "weapon",
+    tier: 2,
   },
   {
     id: "resilience",
     name: "Resilience",
     desc: "Damage iframes +50% — survive longer",
-    cost: 10,
+    cost: { basic: 8, essence: 2 },
     kind: "utility",
+    tier: 2,
   },
 ] as const satisfies readonly Mod[]
 
 export type ModId = (typeof MODS)[number]["id"]
 
 // Tiered weapons. weaponLevel in HudState indexes this array. Only the Elder
-// forge sells upgrades; cost is materials. Damage is the slash base — mods
-// stack on top via additive bonuses inside physics.ts.
+// forge sells upgrades; cost is a rarity bundle. Damage is the slash base —
+// mods stack on top via additive bonuses inside physics.ts.
 export const WEAPONS = [
   {
     level: 0,
     name: "Worn Blade",
     desc: "A nicked, balanced edge",
     damage: 1,
-    cost: 0,
+    cost: {},
   },
   {
     level: 1,
     name: "Forged Blade",
     desc: "Hammered true · sharper bite",
     damage: 2,
-    cost: 10,
+    cost: { basic: 10, essence: 2 },
   },
   {
     level: 2,
     name: "Honed Blade",
     desc: "Mirror-polished · cuts the air",
     damage: 3,
-    cost: 25,
+    cost: { basic: 25, essence: 6, crystal: 2 },
   },
 ] as const satisfies readonly Weapon[]

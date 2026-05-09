@@ -2,6 +2,7 @@
 // Save data lives in localStorage; the manifest is the index that the
 // load menu enumerates without loading every save body.
 
+import type { Materials } from "@/game/economy"
 import type { Character, SceneId } from "@/game/types/physics"
 
 // HUD state mirrored into a save. Defined here (rather than App.tsx) because
@@ -11,7 +12,7 @@ export type QuestStage = "intro" | "active" | "cleared" | "done"
 export interface HudState {
   level: number
   xp: number
-  materials: number
+  materials: Materials
   discovered: string[] // ZoneId values (kept loose — see data.ts)
   achievements: string[] // AchievementId values (loose for the same reason)
   inDelve: boolean
