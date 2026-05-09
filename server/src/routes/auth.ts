@@ -33,7 +33,7 @@ async function createSession(app: FastifyInstance, userId: string): Promise<stri
 }
 
 export async function authRoutes(app: FastifyInstance): Promise<void> {
-  app.post("/auth/signup", async (req, reply) => {
+  app.post("/auth/signup", { config: { rateLimit: {} } }, async (req, reply) => {
     const parsed = SignupBody.safeParse(req.body)
     if (!parsed.success) throw Errors.invalidBody(parsed.error.issues[0]?.message ?? "Invalid body")
 
@@ -59,7 +59,7 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
     return { recoveryCode }
   })
 
-  app.post("/auth/login", async (req, reply) => {
+  app.post("/auth/login", { config: { rateLimit: {} } }, async (req, reply) => {
     const parsed = LoginBody.safeParse(req.body)
     if (!parsed.success) throw Errors.invalidBody(parsed.error.issues[0]?.message ?? "Invalid body")
     const { username, password } = parsed.data
@@ -78,7 +78,7 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
     return { ok: true }
   })
 
-  app.post("/auth/logout", async (req, reply) => {
+  app.post("/auth/logout", { config: { rateLimit: {} } }, async (req, reply) => {
     const raw = req.cookies[app.env.SESSION_COOKIE_NAME]
     if (raw) {
       const tokenHash = hashSessionToken(raw)
@@ -91,7 +91,7 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
     return reply.status(204).send()
   })
 
-  app.post("/auth/recover", async (req, reply) => {
+  app.post("/auth/recover", { config: { rateLimit: {} } }, async (req, reply) => {
     const parsed = RecoverBody.safeParse(req.body)
     if (!parsed.success) throw Errors.invalidBody(parsed.error.issues[0]?.message ?? "Invalid body")
     const { username, recoveryCode, newPassword } = parsed.data
