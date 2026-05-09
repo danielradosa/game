@@ -93,6 +93,9 @@ export interface InputState {
   dashEdge: boolean
   interact: boolean
   interactEdge: boolean
+  // Hotkey edges for active consumables. 1 = heal potion, 2 = storm vial.
+  useHealEdge: boolean
+  useStormEdge: boolean
 }
 
 // ===== Character (cosmetics) =====
@@ -161,10 +164,12 @@ export interface PlayerState {
 }
 
 // ===== Enemy =====
-// ghost   — straight-line floater, low HP, fills the chase niche
-// slammer — bulkier, slower chase, telegraphed windup → lunge attack
-// spitter — light, kites at range, fires homing-less projectile orbs
-export type EnemyType = "ghost" | "slammer" | "spitter"
+// ghost    — straight-line floater, low HP, fills the chase niche
+// slammer  — bulkier, slower chase, telegraphed windup → lunge attack
+// spitter  — light, kites at range, fires homing-less projectile orbs
+// burrower — ground-locked; alternates above-ground chase with underground
+//            tunneling (invulnerable while below) and emerges near the player
+export type EnemyType = "ghost" | "slammer" | "spitter" | "burrower"
 
 export interface Enemy {
   type: EnemyType
@@ -183,6 +188,10 @@ export interface Enemy {
   windup: number // slammer: ticks until lunge starts
   lunging: number // slammer: ticks remaining in active lunge
   fireCool: number // spitter: ticks until next projectile
+  diveCool: number // burrower: ticks until next dive while above ground
+  diveTime: number // burrower: ticks remaining underground (invulnerable)
+  // Glacial Edge mod chill — non-zero halves AI speed and tints visual blue.
+  chillTime: number
 }
 
 // Slow orbs fired by spitters. Damage on player overlap, decay on life-out
@@ -292,6 +301,11 @@ export interface PhysicsCallbacks {
   // Currently equipped weapon tier — physics reads this to compute slash
   // damage. Index into WEAPONS in data.ts.
   getWeaponLevel: () => number
+  // Active consumable inventory + use functions. Physics fires use* on the
+  // input edge; App returns true if a stack was consumed (and decrements).
+  getConsumables: () => { heal: number; storm: number }
+  useHeal: () => boolean
+  useStorm: () => boolean
   setHp: (hp: number) => void
   onDeath: () => void
   notify: (text: string, kind: NotifKind) => void

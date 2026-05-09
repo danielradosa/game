@@ -525,6 +525,54 @@ function drawEnemies(ctx: Ctx, s: GameState): void {
         ctx.arc(cx, cy, eW * 0.5 + t * 28, 0, Math.PI * 2)
         ctx.stroke()
       }
+    } else if (e.type === "burrower") {
+      // Two visual modes: above-ground claw beast, or moving dirt mound at
+      // floor level when diveTime > 0.
+      if (e.diveTime > 0) {
+        // Mound — y reads the spawn surface (we kept e.y at surface even
+        // while burrowing, since gameplay only needs the x to follow).
+        const mx = cx
+        const my = e.y + eH - 4
+        ctx.globalAlpha = 0.95
+        ctx.fillStyle = "#5a3820"
+        ctx.beginPath()
+        ctx.ellipse(mx, my + 2, 18, 9, 0, 0, Math.PI * 2)
+        ctx.fill()
+        ctx.fillStyle = "#7a5030"
+        ctx.beginPath()
+        ctx.ellipse(mx, my, 14, 6, 0, 0, Math.PI * 2)
+        ctx.fill()
+        // Tail of dust trailing behind motion direction.
+        ctx.fillStyle = "rgba(140,90,50,0.5)"
+        ctx.beginPath()
+        ctx.ellipse(mx - e.facing * 14, my + 4, 6, 3, 0, 0, Math.PI * 2)
+        ctx.fill()
+      } else {
+        // Above-ground: claw beast — wider stance, prominent tusks.
+        ctx.globalAlpha = 0.3
+        ctx.fillStyle = "#3a2a1a"
+        ctx.beginPath()
+        ctx.ellipse(cx, cy + 10, eW * 0.6, 5, 0, 0, Math.PI * 2)
+        ctx.fill()
+        ctx.globalAlpha = 0.95
+        ctx.fillStyle = flash ? "#ffffff" : "#8a5a30"
+        // Trapezoidal body
+        ctx.beginPath()
+        ctx.moveTo(cx - eW * 0.45, cy + eH * 0.42)
+        ctx.lineTo(cx - eW * 0.32, cy - eH * 0.4)
+        ctx.lineTo(cx + eW * 0.32, cy - eH * 0.4)
+        ctx.lineTo(cx + eW * 0.45, cy + eH * 0.42)
+        ctx.closePath()
+        ctx.fill()
+        // Tusks
+        ctx.fillStyle = "#e0d0a0"
+        ctx.fillRect(cx - 8, cy + 2, 3, 7)
+        ctx.fillRect(cx + 5, cy + 2, 3, 7)
+        // Eyes — beady red
+        ctx.fillStyle = flash ? "#3a2a1a" : "#ff4040"
+        ctx.fillRect(cx - 7, cy - 6, 3, 3)
+        ctx.fillRect(cx + 4, cy - 6, 3, 3)
+      }
     } else if (e.type === "spitter") {
       // Small floating orb-like creature with a single glowing eye that
       // brightens as it's about to fire.
@@ -556,9 +604,18 @@ function drawEnemies(ctx: Ctx, s: GameState): void {
       ctx.fill()
     }
 
+    // Glacial chill tint — overlay a translucent blue when chillTime > 0.
+    if (e.chillTime > 0) {
+      ctx.globalAlpha = 0.35
+      ctx.fillStyle = "#80c0ff"
+      ctx.beginPath()
+      ctx.arc(cx, cy, eW / 2 + 3, 0, Math.PI * 2)
+      ctx.fill()
+    }
     // HP pip row — only show when damaged so chase enemies don't read busy.
+    // Suppress while burrower is underground (no body to display under).
     ctx.globalAlpha = 1
-    if (e.hp < e.maxHp) {
+    if (e.hp < e.maxHp && !(e.type === "burrower" && e.diveTime > 0)) {
       for (let i = 0; i < e.maxHp; i++) {
         ctx.fillStyle = i < e.hp ? "#ff6080" : "#3a2050"
         ctx.fillRect(cx - e.maxHp * 3 + i * 6, cy - eH / 2 - 6, 4, 3)

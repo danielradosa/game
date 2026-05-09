@@ -367,16 +367,25 @@ export function generateDelve(seed: number, tier = 0): DelveLevel {
   const enemyMin = Math.max(3, Math.floor(W / 14))
   const enemyMax = Math.max(enemyMin + 2, Math.floor(W / 8))
   const enemyCount = randInt(rng, enemyMin, enemyMax) + tier * 2
+  // Type mix: ghost 50, slammer 22, spitter 14, burrower 14. Burrowers are
+  // ground-locked (always floor placement); spitters strongly prefer
+  // platforms for the kite advantage.
   const pickType = (): EnemyType => {
     const r = rng()
-    if (r < 0.15) return "spitter"
-    if (r < 0.4) return "slammer"
+    if (r < 0.14) return "burrower"
+    if (r < 0.28) return "spitter"
+    if (r < 0.5) return "slammer"
     return "ghost"
   }
   const enemySpawns: EnemySpawn[] = []
   for (let i = 0; i < enemyCount; i++) {
     const type = pickType()
-    const wantPlat = type === "spitter" ? chance(rng, 0.85) : chance(rng, 0.5)
+    const wantPlat =
+      type === "spitter"
+        ? chance(rng, 0.85)
+        : type === "burrower"
+          ? false
+          : chance(rng, 0.5)
     if (plats.length > 0 && wantPlat) {
       const pl = plats[randInt(rng, 0, plats.length - 1)]!
       enemySpawns.push({

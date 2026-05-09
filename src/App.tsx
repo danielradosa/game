@@ -72,6 +72,7 @@ export default function App() {
     mods: [],
     maxHpBonus: 0,
     weaponLevel: 0,
+    consumables: { heal: 0, storm: 0 },
   })
   const [hp, setHp] = useState<number>(PLAYER_MAX_HP)
   const [dialogNpc, setDialogNpc] = useState<NpcId | null>(null)
@@ -94,6 +95,8 @@ export default function App() {
     dashEdge: false,
     interact: false,
     interactEdge: false,
+    useHealEdge: false,
+    useStormEdge: false,
   })
   const charRef = useRef<Character>(character)
   charRef.current = character
@@ -423,6 +426,7 @@ export default function App() {
       mods: [],
       maxHpBonus: 0,
       weaponLevel: 0,
+      consumables: { heal: 0, storm: 0 },
     })
     setHp(PLAYER_MAX_HP)
     setNotifs([])
@@ -529,6 +533,7 @@ export default function App() {
         mods: data.hud.mods ?? [],
         maxHpBonus,
         weaponLevel: data.hud.weaponLevel ?? 0,
+        consumables: data.hud.consumables ?? { heal: 0, storm: 0 },
         inDelve: data.pos.scene === "delve",
       })
       // Apply HP bonus to the live player so the loaded run starts with the
@@ -584,6 +589,11 @@ export default function App() {
         if (!inp.interact) inp.interactEdge = true
         inp.interact = true
       }
+      // Consumable hotkeys — only fire if the user has at least one. The
+      // physics layer rechecks via cb.useHeal/useStorm, but we gate here too
+      // for snappy "no feedback when empty" behavior (no edge stamped).
+      if (k === "1" && hudRef.current.consumables.heal > 0) inp.useHealEdge = true
+      if (k === "2" && hudRef.current.consumables.storm > 0) inp.useStormEdge = true
       if (k === "i" || k === "tab") {
         e.preventDefault()
         setShowInv((v) => !v)
@@ -651,6 +661,26 @@ export default function App() {
       transitionToOver,
       hasSword: () => hudRef.current.hasSword,
       getWeaponLevel: () => hudRef.current.weaponLevel,
+      // Consumables: physics asks "may I use one?", App decrements + answers.
+      // Returning false means inventory was empty so the use sound/effect
+      // doesn't fire.
+      getConsumables: () => hudRef.current.consumables,
+      useHeal: () => {
+        if (hudRef.current.consumables.heal <= 0) return false
+        setHud((h) => ({
+          ...h,
+          consumables: { ...h.consumables, heal: h.consumables.heal - 1 },
+        }))
+        return true
+      },
+      useStorm: () => {
+        if (hudRef.current.consumables.storm <= 0) return false
+        setHud((h) => ({
+          ...h,
+          consumables: { ...h.consumables, storm: h.consumables.storm - 1 },
+        }))
+        return true
+      },
       setHp,
       onDeath: () => pushNotif("You fell — respawning", "xp"),
       notify: pushNotif,
@@ -767,7 +797,7 @@ export default function App() {
               {hud.xp} / {xpForLevel(hud.level)} XP
             </div>
             <div className="flex gap-1 mt-1.5">
-              {Array.from({ length: PLAYER_MAX_HP }).map((_, i) => (
+              {Array.from({ length: PLAYER_MAX_HP + hud.maxHpBonus }).map((_, i) => (
                 <div
                   key={i}
                   className={
@@ -781,6 +811,26 @@ export default function App() {
           <div className="bg-black/40 backdrop-blur rounded-lg px-3 py-2 text-white text-sm">
             <div className="text-[10px] text-stone-400">Materials</div>
             <div className="font-bold text-yellow-200">{hud.materials}</div>
+          </div>
+          {/* Consumable hotkey chips — dimmed when empty so the player can
+              see which keys do what at a glance. */}
+          <div
+            className={
+              "bg-black/40 backdrop-blur rounded-lg px-3 py-2 text-white text-sm " +
+              (hud.consumables.heal === 0 ? "opacity-40" : "")
+            }
+          >
+            <div className="text-[10px] text-stone-400">[1] Heal</div>
+            <div className="font-bold text-pink-200">×{hud.consumables.heal}</div>
+          </div>
+          <div
+            className={
+              "bg-black/40 backdrop-blur rounded-lg px-3 py-2 text-white text-sm " +
+              (hud.consumables.storm === 0 ? "opacity-40" : "")
+            }
+          >
+            <div className="text-[10px] text-stone-400">[2] Storm</div>
+            <div className="font-bold text-cyan-200">×{hud.consumables.storm}</div>
           </div>
           <div className="bg-black/40 backdrop-blur rounded-lg px-3 py-2 text-white text-sm">
             <div className="text-[10px] text-stone-400">Discovered</div>
@@ -985,6 +1035,52 @@ export default function App() {
               }))
               pushNotif(`Upgraded: ${next.name} · ${next.damage} dmg`, "ach")
               playSnd("level_up")
+            }}
+            onBuyHeal={() => {
+              const cost = 3
+              const cap = 5
+              if (hudRef.current.consumables.heal >= cap) {
+                pushNotif("Pouch full", "xp")
+                return
+              }
+              if (hudRef.current.materials < cost) {
+                pushNotif(
+                  `Need ${cost} materials (have ${hudRef.current.materials})`,
+                  "xp",
+                )
+                playSnd("land")
+                return
+              }
+              setHud((h) => ({
+                ...h,
+                materials: h.materials - cost,
+                consumables: { ...h.consumables, heal: h.consumables.heal + 1 },
+              }))
+              pushNotif("Heal Potion +1", "ach")
+              playSnd("collect")
+            }}
+            onBuyStorm={() => {
+              const cost = 6
+              const cap = 5
+              if (hudRef.current.consumables.storm >= cap) {
+                pushNotif("Pouch full", "xp")
+                return
+              }
+              if (hudRef.current.materials < cost) {
+                pushNotif(
+                  `Need ${cost} materials (have ${hudRef.current.materials})`,
+                  "xp",
+                )
+                playSnd("land")
+                return
+              }
+              setHud((h) => ({
+                ...h,
+                materials: h.materials - cost,
+                consumables: { ...h.consumables, storm: h.consumables.storm + 1 },
+              }))
+              pushNotif("Storm Vial +1", "ach")
+              playSnd("collect")
             }}
           />
         )}

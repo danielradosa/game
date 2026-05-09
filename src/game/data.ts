@@ -171,6 +171,20 @@ export const MODS = [
     cost: 15,
     kind: "weapon",
   },
+  {
+    id: "glacial",
+    name: "Glacial Edge",
+    desc: "Slash chills · 50% slower enemies for 2s",
+    cost: 10,
+    kind: "weapon",
+  },
+  {
+    id: "resilience",
+    name: "Resilience",
+    desc: "Damage iframes +50% — survive longer",
+    cost: 10,
+    kind: "utility",
+  },
 ] as const satisfies readonly Mod[]
 
 export type ModId = (typeof MODS)[number]["id"]

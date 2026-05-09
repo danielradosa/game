@@ -80,11 +80,30 @@ export const ENEMY_STATS = {
     killXp: 40,
     killMat: 1,
   },
+  burrower: {
+    w: 32,
+    h: 28,
+    hp: 3,
+    chaseSpeed: 1.1,
+    diveCooldown: 180, // ticks above ground between dives
+    diveDuration: 120, // ticks underground (invulnerable + tunneling toward player)
+    killXp: 70,
+    killMat: 2,
+  },
 } as const
 
 export const ENEMY_HIT_IFRAMES = 14
 export const ENEMY_KNOCKBACK = 4
+// Glacial Edge mod chill duration applied on slash hit, in physics ticks.
+export const CHILL_DURATION = 120
 
 export const PROJECTILE_SPEED = 4.2
 export const PROJECTILE_LIFE = 90
 export const PROJECTILE_RADIUS = 6
+
+// Consumable tuning. STORM_RADIUS is the AoE damage radius around the player
+// when a storm vial is uncorked; STORM_DAMAGE is per enemy hit.
+export const HEAL_AMOUNT = 2
+export const STORM_RADIUS = 140
+export const STORM_DAMAGE = 3
+export const STORM_IFRAMES = 30 // brief player invuln after the blast

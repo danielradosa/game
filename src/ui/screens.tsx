@@ -553,7 +553,14 @@ interface DialogPanelProps {
   onCraft: (modId: string) => void
   onBuyMaxHp: () => void
   onUpgradeWeapon: () => void
+  onBuyHeal: () => void
+  onBuyStorm: () => void
 }
+
+// Consumable shop tuning — kept inline since only the Merchant cares.
+const HEAL_COST = 3
+const STORM_COST = 6
+const CONSUMABLE_CAP = 5
 
 // Merchant constants — kept inline (not in data.ts) since they're trivial and
 // only the merchant cares. If a second offering ever lands, hoist to data.ts.
@@ -569,6 +576,8 @@ export function DialogPanel({
   onCraft,
   onBuyMaxHp,
   onUpgradeWeapon,
+  onBuyHeal,
+  onBuyStorm,
 }: DialogPanelProps) {
   if (npc === "merchant") {
     const atCap = hud.maxHpBonus >= MERCHANT_HP_MAX_BONUS
@@ -586,11 +595,11 @@ export function DialogPanel({
             </button>
           </div>
           <p className="text-stone-200 leading-relaxed mb-5">{text}</p>
-          {!atCap && (
-            <div className="mb-5">
-              <div className="text-xs text-stone-400 uppercase tracking-wider mb-2">
-                Stall — {hud.materials} materials
-              </div>
+          <div className="mb-5 space-y-3">
+            <div className="text-xs text-stone-400 uppercase tracking-wider">
+              Stall — {hud.materials} materials
+            </div>
+            {!atCap && (
               <button
                 disabled={!affordable}
                 onClick={onBuyMaxHp}
@@ -609,8 +618,62 @@ export function DialogPanel({
                   Cost: {MERCHANT_HP_COST} materials
                 </div>
               </button>
-            </div>
-          )}
+            )}
+            {/* Consumables — capped at CONSUMABLE_CAP each so the player can't
+                stockpile to invincibility. Counters live in hud.consumables. */}
+            {(() => {
+              const healAffordable = hud.materials >= HEAL_COST
+              const healFull = hud.consumables.heal >= CONSUMABLE_CAP
+              return (
+                <button
+                  disabled={!healAffordable || healFull}
+                  onClick={onBuyHeal}
+                  className={
+                    "w-full text-left p-3 rounded-lg border transition " +
+                    (healAffordable && !healFull
+                      ? "bg-stone-800 border-stone-700 hover:border-emerald-300/60 hover:bg-stone-800/80"
+                      : "bg-stone-900 border-stone-800 opacity-50 cursor-not-allowed")
+                  }
+                >
+                  <div className="font-semibold text-sm text-stone-100">
+                    Heal Potion · ({hud.consumables.heal}/{CONSUMABLE_CAP})
+                  </div>
+                  <div className="text-xs text-stone-400 mt-0.5">
+                    Press [1] mid-fight · restores 2 hearts
+                  </div>
+                  <div className="text-[10px] text-stone-500 mt-1">
+                    {healFull ? "Pouch is full" : `Cost: ${HEAL_COST} materials`}
+                  </div>
+                </button>
+              )
+            })()}
+            {(() => {
+              const stormAffordable = hud.materials >= STORM_COST
+              const stormFull = hud.consumables.storm >= CONSUMABLE_CAP
+              return (
+                <button
+                  disabled={!stormAffordable || stormFull}
+                  onClick={onBuyStorm}
+                  className={
+                    "w-full text-left p-3 rounded-lg border transition " +
+                    (stormAffordable && !stormFull
+                      ? "bg-stone-800 border-stone-700 hover:border-emerald-300/60 hover:bg-stone-800/80"
+                      : "bg-stone-900 border-stone-800 opacity-50 cursor-not-allowed")
+                  }
+                >
+                  <div className="font-semibold text-sm text-stone-100">
+                    Storm Vial · ({hud.consumables.storm}/{CONSUMABLE_CAP})
+                  </div>
+                  <div className="text-xs text-stone-400 mt-0.5">
+                    Press [2] · electric burst, damages every enemy nearby
+                  </div>
+                  <div className="text-[10px] text-stone-500 mt-1">
+                    {stormFull ? "Pouch is full" : `Cost: ${STORM_COST} materials`}
+                  </div>
+                </button>
+              )
+            })()}
+          </div>
           <div className="flex gap-2 justify-end">
             <button
               onClick={onClose}

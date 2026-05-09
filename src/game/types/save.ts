@@ -24,6 +24,8 @@ export interface HudState {
   // Equipped weapon tier — index into WEAPONS table in data.ts. 0 = default
   // Worn Blade, increments via Elder forge upgrades.
   weaponLevel: number
+  // Active consumables stash. Stacked counts; capped at 5 each in App.
+  consumables: { heal: number; storm: number }
 }
 
 // What gets serialized into one save slot.

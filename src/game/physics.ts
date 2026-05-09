@@ -28,9 +28,14 @@ import {
   ENEMY_STATS,
   ENEMY_HIT_IFRAMES,
   ENEMY_KNOCKBACK,
+  CHILL_DURATION,
   PROJECTILE_SPEED,
   PROJECTILE_LIFE,
   PROJECTILE_RADIUS,
+  HEAL_AMOUNT,
+  STORM_RADIUS,
+  STORM_DAMAGE,
+  STORM_IFRAMES,
 } from "@/game/constants"
 import { WEAPONS, ZONES } from "@/game/data"
 import { isSolid, isPlat } from "@/game/levels"
@@ -124,6 +129,12 @@ export function spawnEnemiesFrom(
       lunging: 0,
       // Stagger spitter first-fires so a row of three doesn't volley together.
       fireCool: sp.type === "spitter" ? 30 + Math.floor(Math.random() * 60) : 0,
+      // Burrower starts above-ground with a randomized first-dive timing so
+      // a row of burrowers don't all dive in unison.
+      diveCool:
+        sp.type === "burrower" ? 60 + Math.floor(Math.random() * 120) : 0,
+      diveTime: 0,
+      chillTime: 0,
     })
   })
   return out
@@ -603,6 +614,74 @@ export function stepGame(
   inp.jumpEdge = false
   inp.dashEdge = false
 
+  // ---- consumables (heal / storm vial) ----
+  // Both fire on the keydown edge, ask App for a stack via cb.use*. App
+  // returns true and decrements if the player had one; false if empty.
+  if (inp.useHealEdge) {
+    inp.useHealEdge = false
+    if (cb.useHeal()) {
+      p.hp = Math.min(p.maxHp, p.hp + HEAL_AMOUNT)
+      cb.setHp(p.hp)
+      addParticles(s, p.x + PLAYER_WIDTH / 2, p.y + PLAYER_HEIGHT / 2, 18, "#ff6080", 1.8)
+      playSnd("level_up")
+    }
+  }
+  if (inp.useStormEdge) {
+    inp.useStormEdge = false
+    if (cb.useStorm()) {
+      const cx = p.x + PLAYER_WIDTH / 2
+      const cy = p.y + PLAYER_HEIGHT / 2
+      const radSq = STORM_RADIUS * STORM_RADIUS
+      for (const e of s.enemies) {
+        if (!e.alive) continue
+        const eStats = ENEMY_STATS[e.type]
+        const eCx = e.x + eStats.w / 2
+        const eCy = e.y + eStats.h / 2
+        const dx = eCx - cx
+        const dy = eCy - cy
+        if (dx * dx + dy * dy >= radSq) continue
+        // Storm pierces underground burrowers — electric arc reaches anywhere.
+        e.hp -= STORM_DAMAGE
+        e.iframes = ENEMY_HIT_IFRAMES
+        if (e.hp <= 0) {
+          e.alive = false
+          s.defeatedEnemies.add(e.spawnIndex)
+          cb.addMaterials(eStats.killMat)
+          cb.grantXP(eStats.killXp, "stormed")
+          if (
+            s.current === "delve" &&
+            !s.delveCleared &&
+            s.defeatedEnemies.size >= s.dl.enemySpawns.length
+          ) {
+            s.delveCleared = true
+            cb.notify("Delve cleared — portal unlocked", "discovery")
+            playSnd("portal")
+            cb.onDelveClear()
+          }
+        }
+      }
+      // Brief player iframes while the blast hangs in the air.
+      p.damageIframes = Math.max(p.damageIframes, STORM_IFRAMES)
+      s.cam.shake = Math.max(s.cam.shake, 8)
+      // Particle burst — outer blue ring + inner white sparks.
+      for (let i = 0; i < 36; i++) {
+        const ang = (i / 36) * Math.PI * 2
+        s.particles.push({
+          x: cx + Math.cos(ang) * 16,
+          y: cy + Math.sin(ang) * 16,
+          vx: Math.cos(ang) * 6,
+          vy: Math.sin(ang) * 6,
+          life: 28,
+          max: 28,
+          color: i % 3 === 0 ? "#ffffff" : "#80c0ff",
+          size: 2 + Math.random() * 2,
+          g: 0,
+        })
+      }
+      playSnd("dash")
+    }
+  }
+
   // ---- combat: enemies, sword slash, player damage ----
   if (p.damageIframes > 0) p.damageIframes--
   if (p.slashFrames > 0) p.slashFrames--
@@ -626,6 +705,9 @@ export function stepGame(
     const stats = ENEMY_STATS[e.type]
     const eW = stats.w
     const eH = stats.h
+    // Glacial chill — tick down here so all archetypes share the decay.
+    if (e.chillTime > 0) e.chillTime--
+    const chillMul = e.chillTime > 0 ? 0.5 : 1
     if (e.iframes > 0) {
       e.iframes--
       e.x += e.vx
@@ -641,7 +723,7 @@ export function stepGame(
       e.facing = dxe > 0 ? 1 : -1
       switch (e.type) {
         case "ghost": {
-          const sp = stats.chaseSpeed
+          const sp = stats.chaseSpeed * chillMul
           e.vx = (dxe / dlen) * sp
           e.vy = (dye / dlen) * sp
           e.x += e.vx
@@ -667,11 +749,11 @@ export function stepGame(
             if (e.windup === 0) {
               const slamStats = ENEMY_STATS.slammer
               e.lunging = slamStats.lungeFrames
-              e.vx = (dxe / dlen) * slamStats.lungeSpeed
-              e.vy = (dye / dlen) * slamStats.lungeSpeed
+              e.vx = (dxe / dlen) * slamStats.lungeSpeed * chillMul
+              e.vy = (dye / dlen) * slamStats.lungeSpeed * chillMul
             }
           } else {
-            const sp = stats.chaseSpeed
+            const sp = stats.chaseSpeed * chillMul
             e.vx = (dxe / dlen) * sp
             e.vy = (dye / dlen) * sp
             e.x += e.vx
@@ -685,7 +767,7 @@ export function stepGame(
           // Kite away when too close, drift slowly when distant. Fires a
           // straight projectile every fireInterval ticks.
           const spStats = ENEMY_STATS.spitter
-          const sp = stats.chaseSpeed
+          const sp = stats.chaseSpeed * chillMul
           if (dlen < spStats.kiteDistance) {
             e.vx = (-dxe / dlen) * sp * 1.6
             e.vy = (-dye / dlen) * sp * 1.6
@@ -712,6 +794,40 @@ export function stepGame(
           }
           break
         }
+        case "burrower": {
+          // Above-ground / underground cycle. Underground = invulnerable +
+          // tunneling toward player. Surface chase is fast horizontal pursuit.
+          const buStats = ENEMY_STATS.burrower
+          if (e.diveTime > 0) {
+            // Underground tunneling — slide horizontally toward player at
+            // 1.5x chase speed. Visual handled in render via diveTime > 0.
+            const dirX = dxe === 0 ? 0 : dxe > 0 ? 1 : -1
+            e.vx = dirX * buStats.chaseSpeed * 1.5 * chillMul
+            e.vy = 0
+            e.x += e.vx
+            e.diveTime--
+            // On emerging, reset cooldown and grant brief player tell.
+            if (e.diveTime === 0) {
+              addParticles(s, e.x + eW / 2, e.y + eH, 16, "#a07040", 1.8)
+              playSnd("land")
+              e.diveCool = buStats.diveCooldown
+            }
+          } else if (e.diveCool > 0) {
+            e.diveCool--
+            // Surface chase — horizontal only (sticks to ground).
+            const sp = stats.chaseSpeed * chillMul
+            e.vx = (dxe / dlen) * sp
+            e.x += e.vx
+            // Tiny vertical drift toward original spawn y so they don't drift.
+            e.vy = 0
+          } else {
+            // Trigger a dive — drop a dust burst and go invulnerable for diveDuration.
+            e.diveTime = buStats.diveDuration
+            addParticles(s, e.x + eW / 2, e.y + eH, 18, "#7a5030", 1.6)
+            playSnd("land")
+          }
+          break
+        }
       }
     }
     e.bob += 0.07
@@ -720,7 +836,9 @@ export function stepGame(
     const eCy = e.y + eH / 2
     const overlapX = Math.abs(eCx - pCx) < pHalfW + eW / 2
     const overlapY = Math.abs(eCy - pCy) < pHalfH + eH / 2
-    if (!overlapX || !overlapY) continue
+    // Underground burrowers are intangible — neither slashed nor damaging.
+    const undergroundBurrower = e.type === "burrower" && e.diveTime > 0
+    if (!overlapX || !overlapY || undergroundBurrower) continue
 
     // Sword auto-slashes on overlap. Roll i-frames don't gate this — rolling
     // through is the canonical safe attack (no damage taken + slash lands).
@@ -731,6 +849,11 @@ export function stepGame(
       e.hp -= slashDamage
       e.iframes = ENEMY_HIT_IFRAMES
       e.vx = (eCx > pCx ? 1 : -1) * ENEMY_KNOCKBACK
+      // Glacial Edge — apply chill on hit. Stacks (refreshes) on subsequent hits.
+      if (mods.includes("glacial")) {
+        e.chillTime = CHILL_DURATION
+        addParticles(s, eCx, eCy, 8, "#80c0ff", 1.4)
+      }
       s.hitStop = Math.max(s.hitStop, e.hp <= 0 ? 5 : 3)
       s.cam.shake = Math.max(s.cam.shake, 2.5)
       addParticles(s, eCx, eCy, 10, ch.accent, 1.6)
@@ -773,7 +896,10 @@ export function stepGame(
     // every overlap frame against multi-hp enemies.
     if (e.alive && e.iframes <= 0 && p.damageIframes <= 0 && p.iframes <= 0) {
       p.hp = Math.max(0, p.hp - 1)
-      p.damageIframes = DAMAGE_IFRAMES
+      // Resilience — extends the post-hit invuln window.
+      p.damageIframes = mods.includes("resilience")
+        ? Math.floor(DAMAGE_IFRAMES * 1.5)
+        : DAMAGE_IFRAMES
       p.vx = (pCx > eCx ? 1 : -1) * DAMAGE_KNOCKBACK_VX
       p.vy = DAMAGE_KNOCKBACK_VY
       p.wallLatched = false
@@ -829,7 +955,9 @@ export function stepGame(
     if (dpx * dpx + dpy * dpy < reach * reach) {
       if (p.damageIframes <= 0 && p.iframes <= 0) {
         p.hp = Math.max(0, p.hp - 1)
-        p.damageIframes = DAMAGE_IFRAMES
+        p.damageIframes = mods.includes("resilience")
+          ? Math.floor(DAMAGE_IFRAMES * 1.5)
+          : DAMAGE_IFRAMES
         p.vx = (pCx > pr.x ? 1 : -1) * DAMAGE_KNOCKBACK_VX * 0.7
         p.vy = DAMAGE_KNOCKBACK_VY * 0.7
         s.cam.shake = Math.max(s.cam.shake, 5)
