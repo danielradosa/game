@@ -5,10 +5,11 @@ import { hashPassword, verifyPassword } from "../auth/argon.js"
 import {
   generateRecoveryCode,
   hashRecoveryCode,
+  verifyRecoveryCode,
   generateSessionToken,
   hashSessionToken,
 } from "../auth/tokens.js"
-import { SignupBody, LoginBody } from "@shared/dto.js"
+import { SignupBody, LoginBody, RecoverBody } from "@shared/dto.js"
 import { Errors } from "../errors.js"
 
 function setSessionCookie(reply: FastifyReply, token: string): void {
@@ -88,5 +89,41 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
     }
     reply.clearCookie(app.env.SESSION_COOKIE_NAME, { path: "/" })
     return reply.status(204).send()
+  })
+
+  app.post("/auth/recover", async (req, reply) => {
+    const parsed = RecoverBody.safeParse(req.body)
+    if (!parsed.success) throw Errors.invalidBody(parsed.error.issues[0]?.message ?? "Invalid body")
+    const { username, recoveryCode, newPassword } = parsed.data
+
+    const rows = await app.db.select().from(users).where(eq(users.username, username)).limit(1)
+    const user = rows[0]
+    const hashToCheck = user?.recoveryCodeHash ?? "$argon2id$v=19$m=19456,t=2,p=1$00000000000000000000000000000000$0000000000000000000000000000000000000000000"
+    const ok = await verifyRecoveryCode(hashToCheck, recoveryCode)
+    if (!user || !ok) throw Errors.invalidCredentials()
+
+    const newPasswordHash = await hashPassword(newPassword)
+    const newRecoveryCode = generateRecoveryCode()
+    const newRecoveryHash = await hashRecoveryCode(newRecoveryCode)
+
+    await app.db
+      .update(users)
+      .set({
+        passwordHash: newPasswordHash,
+        recoveryCodeHash: newRecoveryHash,
+        lastLoginAt: new Date(),
+      })
+      .where(eq(users.id, user.id))
+
+    // Revoke ALL existing sessions for this user — recovery means trust is
+    // potentially compromised. Force a fresh sign-in everywhere.
+    await app.db
+      .update(sessions)
+      .set({ revokedAt: new Date() })
+      .where(and(eq(sessions.userId, user.id), isNull(sessions.revokedAt)))
+
+    const token = await createSession(app, user.id)
+    setSessionCookie(reply, token)
+    return { recoveryCode: newRecoveryCode }
   })
 }
