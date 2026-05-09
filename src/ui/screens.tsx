@@ -33,6 +33,7 @@ interface MainMenuProps {
   onNew: () => void
   onLoad: () => void
   onAbout: () => void
+  onSettings: () => void
   onToggleMute: () => void
 }
 
@@ -43,6 +44,7 @@ export function MainMenu({
   onNew,
   onLoad,
   onAbout,
+  onSettings,
   onToggleMute,
 }: MainMenuProps) {
   const hasSaves = manifest.length > 0
@@ -98,6 +100,15 @@ export function MainMenu({
               Load Game ({manifest.length})
             </button>
           )}
+          <button
+            onClick={() => {
+              playSnd("click")
+              onSettings()
+            }}
+            className="text-purple-200 hover:text-white text-sm"
+          >
+            Settings
+          </button>
           <button
             onClick={() => {
               playSnd("click")

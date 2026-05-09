@@ -300,7 +300,7 @@ export interface ZoneBanner {
 // ===== Scene routing =====
 // Which top-level screen App.tsx is rendering. Distinct from SceneId (which
 // describes the in-game level — overworld vs delve).
-export type AppScene = "menu" | "about" | "loadmenu" | "creator" | "play"
+export type AppScene = "menu" | "about" | "loadmenu" | "creator" | "play" | "settings"
 
 // ===== Callbacks (physics → React) =====
 // ID unions are derived from the data tables in src/game/data.ts so adding

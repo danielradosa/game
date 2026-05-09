@@ -39,6 +39,20 @@ export function setMuted(v: boolean) {
   muted = v
 }
 
+// Master volume multiplier (0..1). Applied to every per-call envelope amplitude
+// inside playSnd. setVolume accepts the user-facing 0..100 range from
+// SettingsMenu and stores it normalized so we can multiply per-sound values.
+let masterVolume = 0.8
+
+// setVolume applies to *future* playSnd calls only. The current procedural
+// audio path clones a fresh envelope on every call, so this is harmless.
+// If a long-running HTMLAudio element is ever added to SOUNDS (Phase D
+// audio pass), its `.volume` should be updated here too — iterate the map
+// and apply masterVolume to live elements.
+export function setVolume(n: number): void {
+  masterVolume = Math.max(0, Math.min(1, n / 100))
+}
+
 function ensureAC(): AudioContext | null {
   if (!_ac) {
     try {
@@ -143,7 +157,7 @@ export function playSnd(name: SoundName) {
     try {
       const audio = sound.cloneNode() as HTMLAudioElement
 
-      audio.volume = SOUND_VOLUME[name] ?? 0.4
+      audio.volume = (SOUND_VOLUME[name] ?? 0.4) * masterVolume
 
       void audio.play()
 
@@ -157,7 +171,7 @@ export function playSnd(name: SoundName) {
 
   if (!ac) return
 
-  const volume = SOUND_VOLUME[name] ?? 0.3
+  const volume = (SOUND_VOLUME[name] ?? 0.3) * masterVolume
 
   switch (name) {
     case "jump":

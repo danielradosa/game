@@ -28,8 +28,9 @@ import { freshSeed } from "@/game/rng"
 import { stepGame, makeInitialState, snapRenderPrev, spawnEnemiesFrom } from "@/game/physics"
 import { PLAYER_MAX_HP } from "@/game/constants"
 import { draw, drawPaused } from "@/game/render"
-import { playSnd, setMuted as setMutedAudio } from "@/game/audio"
+import { playSnd, setMuted as setMutedAudio, setVolume as setVolumeAudio } from "@/game/audio"
 import { fetchManifest, persistManifest, getSave, setSave, deleteSave } from "@/game/save"
+import { loadSettings, saveSettings, type Settings } from "@/game/settings"
 import {
   MainMenu,
   About,
@@ -39,6 +40,7 @@ import {
   DialogPanel,
 } from "@/ui/screens"
 import { PerkPicker } from "@/ui/PerkPicker"
+import { SettingsMenu } from "@/ui/SettingsMenu"
 import type {
   AppNotification,
   AppScene,
@@ -59,7 +61,17 @@ export default function App() {
   const [scene, setScene] = useState<AppScene>("menu")
   const [showInv, setShowInv] = useState(false)
   const [paused, setPaused] = useState(false)
-  const [muted, setMuted] = useState(false)
+  // User settings — persisted to localStorage["aw:settings"]. settingsRef
+  // mirrors `settings` so the keydown handler can read the current bindings
+  // without re-subscribing every change. (Key rebinding lands in the next
+  // commit; the handler still uses hardcoded keys for now.)
+  const [settings, setSettings] = useState<Settings>(() => loadSettings())
+  const settingsRef = useRef<Settings>(settings)
+  settingsRef.current = settings
+  // muted is derived from settings.muted but kept as its own state so the
+  // M-key toggle and SettingsMenu mute-checkbox both flow through the same
+  // React update path. Initialized from saved settings.
+  const [muted, setMuted] = useState<boolean>(settings.muted)
   const [character, setCharacter] = useState<Character>({
     name: "Wren",
     skin: SKINS[1],
@@ -125,8 +137,26 @@ export default function App() {
   const perkPendingRef = useRef<boolean>(false)
   perkPendingRef.current = hud.pendingPerkChoice !== null
 
+  // Apply persisted audio settings once on boot so the WebAudio master volume
+  // and mute flag match what the user saved last session. The mute checkbox in
+  // SettingsMenu and the M-key toggle both update `muted` state below, which
+  // re-syncs setMutedAudio.
+  useEffect(() => {
+    setVolumeAudio(settings.volume)
+    setMutedAudio(settings.muted)
+    // Run once at mount only — subsequent changes flow through the
+    // settings-apply path or the muted-state effect below.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
   useEffect(() => {
     setMutedAudio(muted)
+    // Mirror M-key toggle back into settings so it persists across reloads.
+    if (settingsRef.current.muted !== muted) {
+      const next = { ...settingsRef.current, muted }
+      settingsRef.current = next
+      setSettings(next)
+      saveSettings(next)
+    }
   }, [muted])
   useEffect(() => {
     setManifest(fetchManifest())
@@ -947,10 +977,29 @@ export default function App() {
         onNew={() => setScene("creator")}
         onLoad={() => setScene("loadmenu")}
         onAbout={() => setScene("about")}
+        onSettings={() => setScene("settings")}
         onToggleMute={() => setMuted((v) => !v)}
       />
     )
   if (scene === "about") return <About onBack={() => setScene("menu")} />
+  if (scene === "settings")
+    return (
+      <SettingsMenu
+        initial={settings}
+        onApply={(next) => {
+          // Commit: persist, mirror into ref, push audio-side changes, and
+          // keep the local `muted` state in sync so the M-key toggle and
+          // pause overlay stay aligned.
+          setSettings(next)
+          settingsRef.current = next
+          saveSettings(next)
+          setVolumeAudio(next.volume)
+          setMutedAudio(next.muted)
+          setMuted(next.muted)
+        }}
+        onBack={() => setScene("menu")}
+      />
+    )
   if (scene === "loadmenu")
     return (
       <LoadMenu
@@ -1154,6 +1203,16 @@ export default function App() {
                   className="text-stone-300 hover:text-white text-sm"
                 >
                   Inventory
+                </button>
+                <button
+                  onClick={() => {
+                    playSnd("click")
+                    setPaused(false)
+                    setScene("settings")
+                  }}
+                  className="text-stone-300 hover:text-white text-sm"
+                >
+                  Settings
                 </button>
                 <button
                   onClick={() => setMuted((v) => !v)}
