@@ -1,4 +1,4 @@
-# Drift
+# Aether & Wild
 
 A relaxing 2D platformer where exploration is its own reward.
 

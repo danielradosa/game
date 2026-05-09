@@ -56,9 +56,9 @@ export function MainMenu({
           className="text-7xl font-bold tracking-tight text-white mb-2"
           style={{ textShadow: "0 4px 20px rgba(255,180,120,0.5)" }}
         >
-          Drift
+          Aether & Wild
         </div>
-        <div className="text-orange-200 text-lg mb-12 italic">
+        <div className="text-white text-lg mb-12 italic">
           explore at your pace · grind at your will
         </div>
         <div className="flex flex-col gap-3 items-center">
