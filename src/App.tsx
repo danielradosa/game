@@ -52,6 +52,9 @@ import { SettingsMenu, formatKey } from "@/ui/SettingsMenu"
 import { TutorialOverlay } from "@/ui/TutorialOverlay"
 import { useSync } from "@/sync/use-sync"
 import { ConflictModal } from "@/ui/ConflictModal"
+import { useAccount } from "@/auth/account-context"
+import { uploadAllLocalSaves, discardAllLocalSaves } from "@/sync/upload-local"
+import { UploadLocalPrompt } from "@/ui/UploadLocalPrompt"
 import type {
   AppNotification,
   AppScene,
@@ -126,6 +129,8 @@ function AppContents() {
   const [manifest, setManifest] = useState<SaveManifest>([])
 
   const sync = useSync()
+  const account = useAccount()
+  const [uploadPrompt, setUploadPrompt] = useState<{ count: number; busy: boolean } | null>(null)
 
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
   const stateRef = useRef<GameState | null>(null)
@@ -205,6 +210,20 @@ function AppContents() {
     // Refresh after sync events: conflict resolution, new remote pulls, etc.
     setManifest(fetchManifest())
   }, [sync.state.conflicts.length, sync.state.newRemoteSlots.length, sync.state.lastPullAt])
+
+  useEffect(() => {
+    if (account.state.status !== "signed-in") return
+    const key = `aw:upload-prompt-shown:${account.state.username}`
+    if (localStorage.getItem(key)) return
+    // If server already has saves, mark prompt as shown and don't ask.
+    if (account.state.saveCount > 0) {
+      localStorage.setItem(key, "1")
+      return
+    }
+    const localCount = fetchManifest().length
+    if (localCount === 0) return
+    setUploadPrompt({ count: localCount, busy: false })
+  }, [account.state])
 
   const pushNotif = useCallback((text: string, kind: NotifKind): void => {
     const id = Math.random().toString(36).slice(2)
@@ -1586,6 +1605,37 @@ function AppContents() {
             onResolve={(choice) => {
               const slot = sync.state.conflicts[0]
               if (slot) void sync.actions.resolveConflict(slot.slotKey, choice)
+            }}
+          />
+        )}
+        {uploadPrompt && account.state.status === "signed-in" && (
+          <UploadLocalPrompt
+            count={uploadPrompt.count}
+            busy={uploadPrompt.busy}
+            onUpload={async () => {
+              setUploadPrompt({ ...uploadPrompt, busy: true })
+              const r = await uploadAllLocalSaves()
+              if (account.state.status === "signed-in") {
+                localStorage.setItem(`aw:upload-prompt-shown:${account.state.username}`, "1")
+              }
+              setUploadPrompt(null)
+              pushNotif(`Uploaded ${r.uploaded} save${r.uploaded === 1 ? "" : "s"}`, "discovery")
+              void account.actions.refresh()
+            }}
+            onKeepLocalOnly={() => {
+              if (account.state.status === "signed-in") {
+                localStorage.setItem(`aw:upload-prompt-shown:${account.state.username}`, "1")
+              }
+              setUploadPrompt(null)
+            }}
+            onDiscardLocal={() => {
+              discardAllLocalSaves()
+              if (account.state.status === "signed-in") {
+                localStorage.setItem(`aw:upload-prompt-shown:${account.state.username}`, "1")
+              }
+              setUploadPrompt(null)
+              setManifest([])
+              pushNotif("Local saves discarded", "xp")
             }}
           />
         )}
