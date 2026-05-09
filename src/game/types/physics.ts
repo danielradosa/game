@@ -212,6 +212,10 @@ export interface GameState {
   // target of the coin-flip on cleared exit.
   portals: Map<string, PortalState>
   activePortalId: string | null
+  // Seed for the procedural overworld. Persisted in saves so the world is
+  // reproducible across sessions. Portal coords (and therefore portal ids)
+  // are determined by this seed, so it must be stable per save.
+  worldSeed: number
   hitStop: number // when > 0, physics ticks freeze for this many frames (impact pause)
   collected: Set<string> // "<scene>:<tx>,<ty>" keys of pickups already grabbed
   particles: Particle[]

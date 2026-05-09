@@ -13,6 +13,140 @@ import type {
 type PlatRow = [px: number, py: number, pw: number]
 type CellRow = [x: number, y: number]
 
+// Procedural overworld. Seeded heightmap + randomized NPC / portal / cell /
+// platform placement. Same dimensions as buildOverworld so renderer and
+// camera don't need adjustment. Constraints kept light:
+//   - Heightmap stays in [8, 20] so platforms above ground are reachable
+//   - NPC placed at a flat spot (3-tile flat run) so the dialog "[E] Talk"
+//     prompt is visible and the player doesn't slide off
+//   - Portals spaced ≥ 15 tiles apart so they're distinguishable in the HUD
+export function generateOverworld(seed: number): OverworldLevel {
+  const rng = seedRng(seed)
+  const W = 110,
+    H = 22
+  const m: TileChar[][] = Array.from({ length: H }, () => Array<TileChar>(W).fill(" "))
+
+  // Heightmap: two seeded sine layers + a couple of mesa plateaus at random
+  // x-bands so each world has visually distinct terrain.
+  const phase1 = rng() * Math.PI * 2
+  const phase2 = rng() * Math.PI * 2
+  const amp1 = 1 + rng() * 1.2
+  const amp2 = 1 + rng() * 1.2
+  const mesas: { from: number; to: number; y: number }[] = []
+  const mesaCount = randInt(rng, 2, 4)
+  for (let i = 0; i < mesaCount; i++) {
+    const from = randInt(rng, 8, W - 18)
+    const to = from + randInt(rng, 6, 12)
+    const y = randInt(rng, 9, 18)
+    mesas.push({ from, to, y })
+  }
+
+  const g: number[] = []
+  for (let x = 0; x < W; x++) {
+    let y = 16
+    y += Math.round(Math.sin(x * 0.09 + phase1) * 1.5 * amp1)
+    y += Math.round(Math.cos(x * 0.045 + phase2) * 1.4 * amp2)
+    for (const mesa of mesas) {
+      if (x >= mesa.from && x < mesa.to) y = mesa.y
+    }
+    g.push(Math.max(8, Math.min(20, y)))
+  }
+
+  for (let x = 0; x < W; x++) for (let y = g[x]!; y < H; y++) m[y]![x] = "#"
+
+  // Helper: is a 3-tile span flat? Used for NPC and portal placement so
+  // entities don't end up dangling on a 1-tile peak.
+  const isFlat3 = (x: number): boolean =>
+    x >= 1 && x <= W - 2 && g[x - 1] === g[x] && g[x] === g[x + 1]
+
+  // Pick distinct anchored spots: NPC + 4 portals, each on a flat-3 patch
+  // and spaced apart so they're not crowded together.
+  const taken: number[] = []
+  const findFlatSpot = (range: [number, number], minDist = 12): number | null => {
+    const [lo, hi] = range
+    for (let attempts = 0; attempts < 80; attempts++) {
+      const x = randInt(rng, lo, hi)
+      if (!isFlat3(x)) continue
+      if (taken.some((t) => Math.abs(t - x) < minDist)) continue
+      taken.push(x)
+      return x
+    }
+    return null
+  }
+
+  const npcX = findFlatSpot([8, 30]) ?? 10
+  m[g[npcX]! - 1]![npcX] = "n"
+
+  // Try for 4 portals across the width. If a band fails (too few flats), the
+  // returned null is replaced with a fallback x in that band.
+  const portalBands: [number, number][] = [
+    [35, 55],
+    [55, 75],
+    [75, 92],
+    [92, 105],
+  ]
+  for (const band of portalBands) {
+    const px = findFlatSpot(band) ?? band[0]
+    m[g[px]! - 1]![px] = "p"
+  }
+
+  // Floating platforms — count scales with W. Each placed at a random x where
+  // the platform height clears the ground by at least 3 tiles so it's not
+  // buried inside a hill.
+  const platCount = randInt(rng, 8, 14)
+  for (let i = 0; i < platCount; i++) {
+    const len = randInt(rng, 3, 5)
+    const x = randInt(rng, 4, W - len - 4)
+    const groundY = Math.min(...g.slice(x, x + len))
+    if (groundY === undefined) continue
+    const y = randInt(rng, Math.max(4, groundY - 8), groundY - 3)
+    for (let j = 0; j < len; j++) {
+      const row = m[y]
+      if (row && x + j < W && row[x + j] === " ") row[x + j] = "="
+    }
+  }
+
+  // Cells scattered: half on platforms (above the platform tile), half on
+  // open air just above ground level. Counts scale with W.
+  const cellCount = randInt(rng, 8, 14)
+  for (let i = 0; i < cellCount; i++) {
+    const x = randInt(rng, 4, W - 5)
+    // Try to find a "=" platform in this column to perch on; else float
+    // above the ground.
+    let placedY = -1
+    for (let y = 4; y < H - 2; y++) {
+      if (m[y]?.[x] === "=" && m[y - 1]?.[x] === " ") {
+        placedY = y - 1
+        break
+      }
+    }
+    if (placedY === -1) {
+      placedY = g[x]! - randInt(rng, 1, 3)
+    }
+    if (placedY > 1 && m[placedY]?.[x] === " ") {
+      m[placedY]![x] = "c"
+    }
+  }
+
+  // Spawn at the leftmost flat patch the player can stand on without sliding.
+  let spawnX = 3
+  for (let x = 2; x < 10; x++) {
+    if (isFlat3(x)) {
+      spawnX = x
+      break
+    }
+  }
+
+  return {
+    map: m,
+    W,
+    H,
+    spawn: { x: spawnX * TILE_SIZE, y: (g[spawnX]! - 3) * TILE_SIZE },
+    ground: g,
+    theme: "over",
+  }
+}
+
 export function buildOverworld(): OverworldLevel {
   const W = 110,
     H = 22

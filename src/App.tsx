@@ -2,7 +2,7 @@ import { useState, useRef, useEffect, useCallback } from "react"
 import { TILE_SIZE, VIEWPORT_WIDTH, VIEWPORT_HEIGHT, xpForLevel } from "@/game/constants"
 import { ZONES, ACHIEVEMENTS, SKINS, HAIRS, SHIRTS, PANTS, ACCENTS, MODS } from "@/game/data"
 import type { AchievementId, ZoneId } from "@/game/data"
-import { buildOverworld, generateDelve } from "@/game/levels"
+import { generateDelve, generateOverworld } from "@/game/levels"
 import { freshSeed } from "@/game/rng"
 import {
   stepGame,
@@ -57,8 +57,8 @@ export default function App() {
     discovered: [],
     achievements: [],
     inDelve: false,
-    hasSword: true,
-    questStage: "done",
+    hasSword: false,
+    questStage: "intro",
     mods: [],
   })
   const [hp, setHp] = useState<number>(PLAYER_MAX_HP)
@@ -154,6 +154,14 @@ export default function App() {
     (portalId: string): void => {
       const s = stateRef.current
       if (!s) return
+
+      // Sword gate — without one the player would be auto-killed inside.
+      // Keep the quest as the discovery path: hint at the Elder explicitly.
+      if (!hudRef.current.hasSword) {
+        pushNotif("You need a blade — find the Elder", "xp")
+        playSnd("land")
+        return
+      }
 
       // Look up the per-portal state, lazily creating a fresh entry the first
       // time this portal is visited.
@@ -301,6 +309,7 @@ export default function App() {
       delveTier: s.dl.tier,
       portals: serializePortals(s.portals),
       activePortalId: s.activePortalId,
+      worldSeed: s.worldSeed,
     }
     const meta = {
       id,
@@ -339,6 +348,7 @@ export default function App() {
       delveTier: s.dl.tier,
       portals: serializePortals(s.portals),
       activePortalId: s.activePortalId,
+      worldSeed: s.worldSeed,
     }
     const meta = {
       id,
@@ -369,10 +379,10 @@ export default function App() {
   }, [scene, autosave])
 
   const startGameFresh = useCallback((): void => {
-    // Initial delve is a placeholder — every portal entry regenerates from
-    // its own per-portal state, so this layout is only seen if the player
-    // saves and loads before entering any portal.
-    const ow = buildOverworld(),
+    // Roll a fresh world seed for this save — controls overworld terrain,
+    // portal positions, NPC placement. Persists in saves.
+    const worldSeed = freshSeed()
+    const ow = generateOverworld(worldSeed),
       dl = generateDelve(freshSeed(), 0)
     stateRef.current = makeInitialState(
       ow,
@@ -385,6 +395,7 @@ export default function App() {
       false,
       new Map<string, PortalState>(),
       null,
+      worldSeed,
     )
     setHud({
       level: 1,
@@ -393,11 +404,8 @@ export default function App() {
       discovered: [],
       achievements: [],
       inDelve: false,
-      // Sword is default-on now: the prior quest-gate friction-locked combat
-      // for new players who walked past the Elder. The forge dialog still
-      // exists at questStage "done" — Elder opens straight to crafting mods.
-      hasSword: true,
-      questStage: "done",
+      hasSword: false,
+      questStage: "intro",
       mods: [],
     })
     setHp(PLAYER_MAX_HP)
@@ -414,7 +422,12 @@ export default function App() {
         pushNotif("Load failed", "xp")
         return
       }
-      const ow = buildOverworld()
+      // Reproduce the saved overworld from its seed. Old saves predate
+      // procgen — fall back to a fresh seed (portal positions will differ
+      // from what was saved, which orphans portal state, but the game stays
+      // playable).
+      const worldSeed = data.worldSeed ?? freshSeed()
+      const ow = generateOverworld(worldSeed)
 
       // Rehydrate per-portal state machine. Map → JSON Record on save, back to
       // Map on load. Seeds/tiers/statuses round-trip exactly.
@@ -486,6 +499,7 @@ export default function App() {
         data.delveCleared ?? false,
         portals,
         activePortalId,
+        worldSeed,
       )
       setCharacter(data.character)
       // Older saves predate the quest/mods/sword fields — default forward
@@ -866,12 +880,30 @@ export default function App() {
               playSnd("level_up")
             }}
             onCraft={(modId) => {
-              setHud((h) => {
-                const mod = MODS.find((m) => m.id === modId)
-                if (!mod || h.mods.includes(mod.id) || h.materials < mod.cost) return h
-                return { ...h, materials: h.materials - mod.cost, mods: [...h.mods, mod.id] }
-              })
-              pushNotif("Forged: " + (MODS.find((m) => m.id === modId)?.name ?? "?"), "ach")
+              const mod = MODS.find((m) => m.id === modId)
+              if (!mod) return
+              // Pre-check guards: failure cases need to notify the player
+              // (the prior code silently returned the same hud and still
+              // toasted "Forged" — looked like a bug because the button
+              // appeared to do nothing useful).
+              if (hudRef.current.mods.includes(modId)) {
+                pushNotif("Already forged", "xp")
+                return
+              }
+              if (hudRef.current.materials < mod.cost) {
+                pushNotif(
+                  `Need ${mod.cost} materials (have ${hudRef.current.materials})`,
+                  "xp",
+                )
+                playSnd("land")
+                return
+              }
+              setHud((h) => ({
+                ...h,
+                materials: h.materials - mod.cost,
+                mods: [...h.mods, mod.id],
+              }))
+              pushNotif("Forged: " + mod.name + " · -" + mod.cost + " materials", "ach")
               playSnd("big_collect")
             }}
           />

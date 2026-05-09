@@ -40,10 +40,11 @@ export const DAMAGE_KNOCKBACK_VY = -6
 export const SLASH_FRAMES = 12
 export const SLASH_COOLDOWN = 18
 export const SLASH_DAMAGE = 1
-// Reach is added to PLAYER_WIDTH/2 to form the slash hitbox half-width. 24
-// matches the visual sweep arc (radius ~32 from offset 14) so attacks feel
-// like they connect with what's drawn rather than only point-blank contact.
-export const SLASH_REACH = 24
+// Reach is added to PLAYER_WIDTH/2 to form the slash hitbox half-width. 32
+// is roughly one player-width past the visual arc — biased towards "swing
+// connects" feel. Pair with the e.iframes guard on contact damage so the
+// extra reach doesn't double-hit.
+export const SLASH_REACH = 32
 
 export const ENEMY_WIDTH = 26
 export const ENEMY_HEIGHT = 26

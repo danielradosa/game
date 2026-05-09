@@ -693,7 +693,15 @@ export function stepGame(
         p.damageIframes = DAMAGE_IFRAMES * 2
         p.dead = false
         cb.setHp(p.hp)
+        // Respawn the delve's still-alive enemies at their original spawn
+        // points so the player isn't chain-killed by enemies that were right
+        // next to them when they died. defeatedEnemies are preserved so the
+        // run progress isn't lost — only positions reset.
+        if (s.current === "delve") {
+          s.enemies = spawnEnemiesFrom(s.dl.enemySpawns, s.defeatedEnemies)
+        }
         snapRenderPrev(s)
+        break
       }
     }
   }
@@ -747,6 +755,7 @@ export function makeInitialState(
   delveCleared = false,
   portals: Map<string, PortalState> = new Map(),
   activePortalId: string | null = null,
+  worldSeed = 0,
 ): GameState {
   const lv = current === "delve" ? dl : ow
   const st: GameState = {
@@ -798,6 +807,7 @@ export function makeInitialState(
     delveCleared,
     portals,
     activePortalId,
+    worldSeed,
     hitStop: 0,
     collected,
     particles: [],

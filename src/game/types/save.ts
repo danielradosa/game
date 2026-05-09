@@ -39,6 +39,9 @@ export interface SaveData {
   // Per-portal state machine, serialized as a Record (Maps don't JSON cleanly).
   portals?: Record<string, PortalStateSerialized>
   activePortalId?: string | null
+  // Seed for the procedural overworld. Optional for backwards compat with
+  // saves created before the procgen overworld landed.
+  worldSeed?: number
   // DEPRECATED single-portal flag from before multi-portal landed. Old saves
   // with this set get migrated forward on load.
   portalDestroyed?: boolean
