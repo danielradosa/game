@@ -209,12 +209,26 @@ export interface Projectile {
 // defeatedEnemies + cleared remember per-portal progress so re-entering the
 // same portal restores where you left off. status flips to "destroyed" on
 // the coin-flip and the portal becomes inert (renders as "X" rubble).
+
+// Death cache — when the player dies in a delve, 25% of each rarity is
+// stashed at the death tile on the active portal. Re-entering the same
+// portal renders a glowing pickup; player overlap reclaims it. Wiped if the
+// portal seals before recovery.
+export interface LostCache {
+  x: number
+  y: number
+  basic: number
+  essence: number
+  crystal: number
+}
+
 export interface PortalState {
   seed: number
   tier: number
   status: "fresh" | "destroyed"
   defeatedEnemies: number[]
   cleared: boolean
+  lostCache: LostCache | null
 }
 
 // ===== Game state =====

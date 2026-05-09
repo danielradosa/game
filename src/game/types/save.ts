@@ -3,7 +3,7 @@
 // load menu enumerates without loading every save body.
 
 import type { Materials } from "@/game/economy"
-import type { Character, SceneId } from "@/game/types/physics"
+import type { Character, LostCache, SceneId } from "@/game/types/physics"
 
 // HUD state mirrored into a save. Defined here (rather than App.tsx) because
 // save.ts is the consumer that needs the contract.
@@ -64,6 +64,7 @@ export interface PortalStateSerialized {
   status: "fresh" | "destroyed"
   defeatedEnemies: number[]
   cleared: boolean
+  lostCache: LostCache | null
 }
 
 // One row in the load-menu list. Cheap to enumerate.

@@ -180,6 +180,74 @@ export function stepGame(
     return
   }
 
+  // Death handler — shared by the enemy-contact loop and the projectile loop
+  // so a fatal hit from either source triggers the same stash-and-respawn
+  // sequence. If a cache already exists at this portal (multiple deaths in
+  // one delve run), merge the new losses into it and update the marker
+  // position to the most recent death so the player walks back to where
+  // they last fell.
+  function handlePlayerDeath(): void {
+    p.dead = true
+    if (s.current === "delve" && s.activePortalId !== null) {
+      const portal = s.portals.get(s.activePortalId)
+      if (portal) {
+        const mats = cb.getMaterials()
+        const lostBasic = Math.floor(mats.basic * 0.25)
+        const lostEssence = Math.floor(mats.essence * 0.25)
+        const lostCrystal = Math.floor(mats.crystal * 0.25)
+        const total = lostBasic + lostEssence + lostCrystal
+        if (total > 0) {
+          const existing = portal.lostCache
+          const cx = s.p.x + PLAYER_WIDTH / 2
+          const cy = s.p.y + PLAYER_HEIGHT / 2
+          portal.lostCache = existing
+            ? {
+                x: cx,
+                y: cy,
+                basic: existing.basic + lostBasic,
+                essence: existing.essence + lostEssence,
+                crystal: existing.crystal + lostCrystal,
+              }
+            : {
+                x: cx,
+                y: cy,
+                basic: lostBasic,
+                essence: lostEssence,
+                crystal: lostCrystal,
+              }
+          cb.addMaterials({
+            basic: -lostBasic,
+            essence: -lostEssence,
+            crystal: -lostCrystal,
+          })
+          cb.notify(
+            existing
+              ? `Cache grew · +${total} mats`
+              : `Lost cache · ${total} mats — reclaim at this portal`,
+            "xp",
+          )
+        }
+      }
+    }
+    cb.onDeath()
+    p.x = lv.spawn.x
+    p.y = lv.spawn.y
+    p.vx = 0
+    p.vy = 0
+    p.hp = p.maxHp
+    p.damageIframes = DAMAGE_IFRAMES * 2
+    p.dead = false
+    cb.setHp(p.hp)
+    // Respawn the delve's still-alive enemies at their original spawn
+    // points so the player isn't chain-killed by enemies that were right
+    // next to them when they died. defeatedEnemies are preserved so the
+    // run progress isn't lost — only positions reset.
+    if (s.current === "delve") {
+      s.enemies = spawnEnemiesFrom(s.dl.enemySpawns, s.defeatedEnemies)
+    }
+    snapRenderPrev(s)
+  }
+
   // ---- horizontal direction intent ----
   let dir = 0
   if (inp.left) dir -= 1
@@ -568,6 +636,27 @@ export function stepGame(
           if (m.basic + m.essence + m.crystal >= 5) cb.grantAch("a6")
         }
       }
+    // Death-cache pickup — distance-based (not a tilemap entity). Player
+    // overlap within ~32px of the active portal's lostCache reclaims it.
+    if (s.current === "delve" && s.activePortalId !== null) {
+      const portal = s.portals.get(s.activePortalId)
+      if (portal && portal.lostCache) {
+        const lc = portal.lostCache
+        const dx = cxp - lc.x
+        const dy = cyp - lc.y
+        if (dx * dx + dy * dy <= 32 * 32) {
+          cb.addMaterials({
+            basic: lc.basic,
+            essence: lc.essence,
+            crystal: lc.crystal,
+          })
+          cb.notify("Cache reclaimed", "ach")
+          addParticles(s, lc.x, lc.y, 16, "#a0e8ff", 2)
+          playSnd("big_collect")
+          portal.lostCache = null
+        }
+      }
+    }
   }
   {
     // Interactable search range — pad by 1 tile on each side so portals,
@@ -920,24 +1009,7 @@ export function stepGame(
       playSnd("land")
       cb.setHp(p.hp)
       if (p.hp <= 0 && !p.dead) {
-        p.dead = true
-        cb.onDeath()
-        p.x = lv.spawn.x
-        p.y = lv.spawn.y
-        p.vx = 0
-        p.vy = 0
-        p.hp = p.maxHp
-        p.damageIframes = DAMAGE_IFRAMES * 2
-        p.dead = false
-        cb.setHp(p.hp)
-        // Respawn the delve's still-alive enemies at their original spawn
-        // points so the player isn't chain-killed by enemies that were right
-        // next to them when they died. defeatedEnemies are preserved so the
-        // run progress isn't lost — only positions reset.
-        if (s.current === "delve") {
-          s.enemies = spawnEnemiesFrom(s.dl.enemySpawns, s.defeatedEnemies)
-        }
-        snapRenderPrev(s)
+        handlePlayerDeath()
         break
       }
     }
@@ -981,6 +1053,10 @@ export function stepGame(
     }
   }
   s.projectiles = s.projectiles.filter((pr) => pr.life > 0)
+
+  // Projectile damage can also drop hp to 0; mirror the contact-loop death
+  // handler so the player can't sit at 0 hp until something else touches them.
+  if (p.hp <= 0 && !p.dead) handlePlayerDeath()
 
   // ---- camera ----
   const camTargetX = p.x + PLAYER_WIDTH / 2 - 880 / 2

@@ -210,6 +210,7 @@ export default function App() {
           status: "fresh",
           defeatedEnemies: [],
           cleared: false,
+          lostCache: null,
         }
         s.portals.set(portalId, portal)
       }
@@ -297,6 +298,10 @@ export default function App() {
       portal.cleared = false
 
       if (sealForever) {
+        if (portal.lostCache) {
+          pushNotif("A sealed rift swallowed your cache", "xp")
+          portal.lostCache = null
+        }
         portal.status = "destroyed"
         const [tx, ty] = portalId.split(",").map(Number)
         if (tx !== undefined && ty !== undefined && s.ow.map[ty]?.[tx] === "p") {
@@ -328,6 +333,7 @@ export default function App() {
         status: ps.status,
         defeatedEnemies: ps.defeatedEnemies,
         cleared: ps.cleared,
+        lostCache: ps.lostCache,
       }
     }
     return out
@@ -490,6 +496,8 @@ export default function App() {
             status: ps.status,
             defeatedEnemies: [...ps.defeatedEnemies],
             cleared: ps.cleared,
+            // Forward-compat: pre-Phase-C-Task-3 saves don't have lostCache.
+            lostCache: ps.lostCache ?? null,
           })
         }
       }
@@ -507,6 +515,7 @@ export default function App() {
                 status: "destroyed",
                 defeatedEnemies: [],
                 cleared: false,
+                lostCache: null,
               })
             }
           }

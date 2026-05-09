@@ -56,6 +56,7 @@ export function draw(ctx: Ctx, s: GameState, ch: Character, alpha: number): void
   drawEntities(ctx, s)
   drawEnemies(ctx, s)
   drawProjectiles(ctx, s)
+  drawLostCache(ctx, s)
   for (const pt of s.particles) {
     ctx.globalAlpha = Math.max(0, pt.life / pt.max)
     ctx.fillStyle = pt.color
@@ -698,6 +699,48 @@ function drawProjectiles(ctx: Ctx, s: GameState): void {
     ctx.arc(pr.x - 1.5, pr.y - 1.5, 1.5, 0, Math.PI * 2)
     ctx.fill()
   }
+  ctx.globalAlpha = 1
+}
+
+// Death-cache marker — the active portal's lostCache, if any. Drawn after
+// entities/enemies/projectiles so it sits in front of the world but behind
+// the player. Pulses cyan; the player walks over it to reclaim.
+function drawLostCache(ctx: Ctx, s: GameState): void {
+  if (s.current !== "delve" || s.activePortalId === null) return
+  const portal = s.portals.get(s.activePortalId)
+  if (!portal || !portal.lostCache) return
+  const lc = portal.lostCache
+  const t = Math.sin(s.time * 0.005) * 0.5 + 0.5
+  ctx.save()
+  ctx.translate(lc.x, lc.y - 8)
+  // Outer pulsing halo
+  const radius = 22 + 6 * t
+  const g = ctx.createRadialGradient(0, 0, 0, 0, 0, radius)
+  g.addColorStop(0, "rgba(160,232,255,0.55)")
+  g.addColorStop(1, "rgba(160,232,255,0)")
+  ctx.fillStyle = g
+  ctx.fillRect(-radius, -radius, radius * 2, radius * 2)
+  // Inner crystal shape
+  ctx.globalAlpha = 0.7 + 0.3 * t
+  ctx.fillStyle = "#a0e8ff"
+  ctx.beginPath()
+  ctx.moveTo(0, -10)
+  ctx.lineTo(7, -2)
+  ctx.lineTo(5, 8)
+  ctx.lineTo(-5, 8)
+  ctx.lineTo(-7, -2)
+  ctx.closePath()
+  ctx.fill()
+  // Bright highlight
+  ctx.globalAlpha = 1
+  ctx.fillStyle = "#e8faff"
+  ctx.beginPath()
+  ctx.moveTo(0, -10)
+  ctx.lineTo(7, -2)
+  ctx.lineTo(2, 0)
+  ctx.closePath()
+  ctx.fill()
+  ctx.restore()
   ctx.globalAlpha = 1
 }
 
