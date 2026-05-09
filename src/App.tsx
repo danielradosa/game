@@ -50,6 +50,8 @@ import {
 import { PerkPicker } from "@/ui/PerkPicker"
 import { SettingsMenu, formatKey } from "@/ui/SettingsMenu"
 import { TutorialOverlay } from "@/ui/TutorialOverlay"
+import { useSync } from "@/sync/use-sync"
+import { ConflictModal } from "@/ui/ConflictModal"
 import type {
   AppNotification,
   AppScene,
@@ -122,6 +124,8 @@ function AppContents() {
   const [notifs, setNotifs] = useState<AppNotification[]>([])
   const [zoneBanner, setZoneBanner] = useState<ZoneBanner | null>(null)
   const [manifest, setManifest] = useState<SaveManifest>([])
+
+  const sync = useSync()
 
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
   const stateRef = useRef<GameState | null>(null)
@@ -197,6 +201,10 @@ function AppContents() {
   useEffect(() => {
     setManifest(fetchManifest())
   }, [])
+  useEffect(() => {
+    // Refresh after sync events: conflict resolution, new remote pulls, etc.
+    setManifest(fetchManifest())
+  }, [sync.state.conflicts.length, sync.state.newRemoteSlots.length, sync.state.lastPullAt])
 
   const pushNotif = useCallback((text: string, kind: NotifKind): void => {
     const id = Math.random().toString(36).slice(2)
@@ -550,6 +558,7 @@ function AppContents() {
       worldSeed: s.worldSeed ?? 0,
     }
     if (setSave(id, data)) {
+      void sync.actions.pushSave(id, data, meta)
       // Functional updater so we always merge against the latest manifest —
       // autosave fires every 20s and could land between renders, leaving any
       // closed-over `manifest` stale. Filter-by-id mirrors autosave so a
@@ -561,7 +570,7 @@ function AppContents() {
       })
       pushNotif("Saved", "discovery")
     } else pushNotif("Save failed", "xp")
-  }, [pushNotif])
+  }, [pushNotif, sync.actions])
 
   // Autosave: writes to a reserved "autosave" slot every 20s while playing.
   // Replaces the existing autosave manifest entry in place so the load menu
@@ -601,12 +610,13 @@ function AppContents() {
       worldSeed: s.worldSeed ?? 0,
     }
     if (!setSave(id, data)) return
+    void sync.actions.pushSave(id, data, meta)
     setManifest((m) => {
       const next = [meta, ...m.filter((e) => e.id !== id)]
       persistManifest(next)
       return next
     })
-  }, [])
+  }, [sync.actions])
 
   useEffect(() => {
     if (scene !== "play") return
@@ -849,11 +859,12 @@ function AppContents() {
   const deleteSaveById = useCallback(
     (id: string): void => {
       deleteSave(id)
+      void sync.actions.deleteRemote(id)
       const next = manifest.filter((s) => s.id !== id)
       persistManifest(next)
       setManifest(next)
     },
-    [manifest],
+    [manifest, sync.actions],
   )
 
   useEffect(() => {
@@ -1569,6 +1580,15 @@ function AppContents() {
           />
         )}
         {tutorialOpen && <TutorialOverlay settings={settings} onDismiss={dismissTutorial} />}
+        {sync.state.conflicts[0] && (
+          <ConflictModal
+            conflict={sync.state.conflicts[0]}
+            onResolve={(choice) => {
+              const slot = sync.state.conflicts[0]
+              if (slot) void sync.actions.resolveConflict(slot.slotKey, choice)
+            }}
+          />
+        )}
       </div>
     </div>
   )
