@@ -42,31 +42,35 @@ export default function CharacterPreview({ ch }: CharacterPreviewProps) {
       ctx.fillStyle = ch.skin
       ctx.fillRect(-13, -14, 4, 3)
       ctx.fillRect(9, -14, 4, 3)
+      // Neck — same fix as the in-game player render. Head pushed up so
+      // there's a visible skin column between torso top (~-25) and head
+      // bottom (~-29 with radius 7).
       ctx.fillStyle = ch.skin
+      ctx.fillRect(-2.5, -29, 5, 5)
       ctx.beginPath()
-      ctx.arc(0, -29, 7, 0, Math.PI * 2)
+      ctx.arc(0, -36, 7, 0, Math.PI * 2)
       ctx.fill()
       ctx.fillStyle = ch.hair
       if (ch.hairStyle === "short") {
         ctx.beginPath()
-        ctx.arc(0, -32, 7, Math.PI, 0)
+        ctx.arc(0, -39, 7, Math.PI, 0)
         ctx.fill()
       } else if (ch.hairStyle === "med") {
         ctx.beginPath()
-        ctx.arc(0, -32, 8, Math.PI, 0)
+        ctx.arc(0, -39, 8, Math.PI, 0)
         ctx.fill()
-        ctx.fillRect(-8, -32, 3, 7)
-        ctx.fillRect(5, -32, 3, 5)
+        ctx.fillRect(-8, -39, 3, 7)
+        ctx.fillRect(5, -39, 3, 5)
       } else {
         ctx.beginPath()
-        ctx.arc(0, -32, 8, Math.PI, 0)
+        ctx.arc(0, -39, 8, Math.PI, 0)
         ctx.fill()
-        ctx.fillRect(-8, -33, 3, 16)
-        ctx.fillRect(5, -33, 3, 16)
+        ctx.fillRect(-8, -40, 3, 16)
+        ctx.fillRect(5, -40, 3, 16)
       }
       ctx.fillStyle = "#1a1a1a"
-      ctx.fillRect(-3, -29, 1.5, 1.5)
-      ctx.fillRect(2, -29, 1.5, 1.5)
+      ctx.fillRect(-3, -36, 1.5, 1.5)
+      ctx.fillRect(2, -36, 1.5, 1.5)
       ctx.restore()
       t++
       raf = requestAnimationFrame(draw)

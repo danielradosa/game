@@ -63,6 +63,7 @@ export function draw(ctx: Ctx, s: GameState, ch: Character, alpha: number): void
     ctx.fill()
   }
   ctx.globalAlpha = 1
+  drawAuras(ctx, s)
   drawPlayer(ctx, s, ch)
   drawSlash(ctx, s, ch)
   ctx.restore()
@@ -592,15 +593,22 @@ function drawProjectiles(ctx: Ctx, s: GameState): void {
 function drawSlash(ctx: Ctx, s: GameState, ch: Character): void {
   const p = s.p
   if (p.slashFrames <= 0) return
+  const mods = s.activeMods
+  const hasSearing = mods.includes("searing")
+  const hasStormbound = mods.includes("stormbound")
   const t = 1 - p.slashFrames / SLASH_FRAMES // 0 → 1 progress
   const cx = p.x + PLAYER_WIDTH / 2 + p.facing * 14
   const cy = p.y + PLAYER_HEIGHT / 2
-  const radius = 18 + t * 14
+  // Stormbound widens the visual sweep to match the +50% reach buff.
+  const radius = (18 + t * 14) * (hasStormbound ? 1.5 : 1)
   const sweep = Math.PI * 0.9
   const start = p.facing > 0 ? -sweep / 2 : Math.PI - sweep / 2
+
   ctx.save()
+  // Base arc — coloured by the dominant mod, falling back to accent.
+  const arcColor = hasStormbound ? "#80c0ff" : hasSearing ? "#ffae40" : ch.accent
   ctx.globalAlpha = 1 - t
-  ctx.strokeStyle = ch.accent
+  ctx.strokeStyle = arcColor
   ctx.lineWidth = 4
   ctx.beginPath()
   ctx.arc(cx, cy, radius, start, start + sweep)
@@ -608,6 +616,70 @@ function drawSlash(ctx: Ctx, s: GameState, ch: Character): void {
   ctx.globalAlpha = (1 - t) * 0.4
   ctx.lineWidth = 9
   ctx.stroke()
+
+  // Searing: scatter flame motes along the arc, brighter at the leading edge.
+  if (hasSearing) {
+    const sampleCount = 6
+    for (let i = 0; i < sampleCount; i++) {
+      const a = start + (sweep * i) / (sampleCount - 1)
+      const ax = cx + Math.cos(a) * radius
+      const ay = cy + Math.sin(a) * radius
+      const jitter = 4
+      const fx = ax + (Math.random() - 0.5) * jitter
+      const fy = ay + (Math.random() - 0.5) * jitter
+      ctx.globalAlpha = (1 - t) * 0.85
+      ctx.fillStyle = i % 2 === 0 ? "#ffcc40" : "#ff5020"
+      ctx.beginPath()
+      ctx.arc(fx, fy, 2.5 + (1 - t) * 1.5, 0, Math.PI * 2)
+      ctx.fill()
+    }
+  }
+  // Stormbound: jagged crackles flicker between the sweep and the player.
+  if (hasStormbound) {
+    ctx.globalAlpha = (1 - t) * 0.7
+    ctx.strokeStyle = "#a0e0ff"
+    ctx.lineWidth = 1.5
+    for (let i = 0; i < 3; i++) {
+      const a = start + (sweep * (i + 0.5)) / 3
+      const ex = cx + Math.cos(a) * radius
+      const ey = cy + Math.sin(a) * radius
+      ctx.beginPath()
+      ctx.moveTo(cx, cy)
+      // 2 quick zig-zag joints
+      ctx.lineTo(
+        cx + (ex - cx) * 0.4 + (Math.random() - 0.5) * 6,
+        cy + (ey - cy) * 0.4 + (Math.random() - 0.5) * 6,
+      )
+      ctx.lineTo(
+        cx + (ex - cx) * 0.75 + (Math.random() - 0.5) * 6,
+        cy + (ey - cy) * 0.75 + (Math.random() - 0.5) * 6,
+      )
+      ctx.lineTo(ex, ey)
+      ctx.stroke()
+    }
+  }
+  ctx.restore()
+}
+
+// Passive aura — drawn under the player so it reads as ambient. Only
+// stormbound has an aura right now; other passive auras can be slotted in
+// alongside.
+function drawAuras(ctx: Ctx, s: GameState): void {
+  const mods = s.activeMods
+  if (!mods.includes("stormbound")) return
+  const p = s.p
+  const cx = p.x + PLAYER_WIDTH / 2
+  const cy = p.y + PLAYER_HEIGHT / 2
+  const pulse = 0.5 + Math.sin(s.time * 0.01) * 0.1
+  ctx.save()
+  ctx.globalAlpha = 0.18 * pulse
+  const grad = ctx.createRadialGradient(cx, cy, 4, cx, cy, 32)
+  grad.addColorStop(0, "rgba(160,220,255,0.6)")
+  grad.addColorStop(1, "rgba(80,120,200,0)")
+  ctx.fillStyle = grad
+  ctx.beginPath()
+  ctx.arc(cx, cy, 32, 0, Math.PI * 2)
+  ctx.fill()
   ctx.restore()
 }
 

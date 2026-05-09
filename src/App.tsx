@@ -1,6 +1,16 @@
 import { useState, useRef, useEffect, useCallback } from "react"
 import { TILE_SIZE, VIEWPORT_WIDTH, VIEWPORT_HEIGHT, xpForLevel } from "@/game/constants"
-import { ZONES, ACHIEVEMENTS, SKINS, HAIRS, SHIRTS, PANTS, ACCENTS, MODS } from "@/game/data"
+import {
+  ZONES,
+  ACHIEVEMENTS,
+  SKINS,
+  HAIRS,
+  SHIRTS,
+  PANTS,
+  ACCENTS,
+  MODS,
+  WEAPONS,
+} from "@/game/data"
 import type { AchievementId, ZoneId } from "@/game/data"
 import { generateDelve, generateOverworld } from "@/game/levels"
 import { freshSeed } from "@/game/rng"
@@ -61,6 +71,7 @@ export default function App() {
     questStage: "intro",
     mods: [],
     maxHpBonus: 0,
+    weaponLevel: 0,
   })
   const [hp, setHp] = useState<number>(PLAYER_MAX_HP)
   const [dialogNpc, setDialogNpc] = useState<NpcId | null>(null)
@@ -411,6 +422,7 @@ export default function App() {
       questStage: "intro",
       mods: [],
       maxHpBonus: 0,
+      weaponLevel: 0,
     })
     setHp(PLAYER_MAX_HP)
     setNotifs([])
@@ -516,6 +528,7 @@ export default function App() {
         questStage: data.hud.questStage ?? "done",
         mods: data.hud.mods ?? [],
         maxHpBonus,
+        weaponLevel: data.hud.weaponLevel ?? 0,
         inDelve: data.pos.scene === "delve",
       })
       // Apply HP bonus to the live player so the loaded run starts with the
@@ -637,6 +650,7 @@ export default function App() {
       transitionToDelve,
       transitionToOver,
       hasSword: () => hudRef.current.hasSword,
+      getWeaponLevel: () => hudRef.current.weaponLevel,
       setHp,
       onDeath: () => pushNotif("You fell — respawning", "xp"),
       notify: pushNotif,
@@ -948,6 +962,28 @@ export default function App() {
                 setHp(liveS.p.hp)
               }
               pushNotif("Max HP +1 — heart restored", "ach")
+              playSnd("level_up")
+            }}
+            onUpgradeWeapon={() => {
+              const next = WEAPONS[hudRef.current.weaponLevel + 1]
+              if (!next) {
+                pushNotif("Already at peak", "xp")
+                return
+              }
+              if (hudRef.current.materials < next.cost) {
+                pushNotif(
+                  `Need ${next.cost} materials (have ${hudRef.current.materials})`,
+                  "xp",
+                )
+                playSnd("land")
+                return
+              }
+              setHud((h) => ({
+                ...h,
+                materials: h.materials - next.cost,
+                weaponLevel: h.weaponLevel + 1,
+              }))
+              pushNotif(`Upgraded: ${next.name} · ${next.damage} dmg`, "ach")
               playSnd("level_up")
             }}
           />

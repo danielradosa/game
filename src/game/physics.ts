@@ -24,7 +24,6 @@ import {
   DAMAGE_KNOCKBACK_VY,
   SLASH_FRAMES,
   SLASH_COOLDOWN,
-  SLASH_DAMAGE,
   SLASH_REACH,
   ENEMY_STATS,
   ENEMY_HIT_IFRAMES,
@@ -33,7 +32,7 @@ import {
   PROJECTILE_LIFE,
   PROJECTILE_RADIUS,
 } from "@/game/constants"
-import { ZONES } from "@/game/data"
+import { WEAPONS, ZONES } from "@/game/data"
 import { isSolid, isPlat } from "@/game/levels"
 import { playSnd } from "@/game/audio"
 import type {
@@ -152,6 +151,9 @@ export function stepGame(
   const mods = cb.getMods()
   const runMax = mods.includes("quickfeet") ? MAX_RUN_SPEED * 1.15 : MAX_RUN_SPEED
   const magnetR = mods.includes("lodestone") ? MAGNET_RADIUS * 1.6 : MAGNET_RADIUS
+  // Snapshot for the renderer (which only reads s, not cb).
+  s.activeMods = mods
+  s.activeWeaponLevel = cb.getWeaponLevel()
 
   // Snapshot pre-tick state so the renderer can lerp between this and the
   // post-tick state. Teleports below re-snap to avoid a smear across the cut.
@@ -608,8 +610,16 @@ export function stepGame(
 
   const pCx = p.x + PLAYER_WIDTH / 2
   const pCy = p.y + PLAYER_HEIGHT / 2
-  const pHalfW = PLAYER_WIDTH / 2 + SLASH_REACH
-  const pHalfH = PLAYER_HEIGHT / 2 + SLASH_REACH
+  // Mods stack on the base reach. Stormbound is the only reach-modifier for
+  // now (+50%) — slot a longer chain here if other reach mods land later.
+  const reachMul = mods.includes("stormbound") ? 1.5 : 1
+  const slashReach = SLASH_REACH * reachMul
+  const pHalfW = PLAYER_WIDTH / 2 + slashReach
+  const pHalfH = PLAYER_HEIGHT / 2 + slashReach
+  // Per-frame slash damage = weapon tier base + flat mod bonuses. Recompute
+  // each tick so changing weapons / mods mid-delve takes effect immediately.
+  const weapon = WEAPONS[cb.getWeaponLevel()] ?? WEAPONS[0]!
+  const slashDamage = weapon.damage + (mods.includes("searing") ? 1 : 0)
 
   for (const e of s.enemies) {
     if (!e.alive) continue
@@ -718,12 +728,16 @@ export function stepGame(
       p.slashFrames = SLASH_FRAMES
       p.slashCool = SLASH_COOLDOWN
       p.facing = eCx > pCx ? 1 : -1
-      e.hp -= SLASH_DAMAGE
+      e.hp -= slashDamage
       e.iframes = ENEMY_HIT_IFRAMES
       e.vx = (eCx > pCx ? 1 : -1) * ENEMY_KNOCKBACK
       s.hitStop = Math.max(s.hitStop, e.hp <= 0 ? 5 : 3)
       s.cam.shake = Math.max(s.cam.shake, 2.5)
       addParticles(s, eCx, eCy, 10, ch.accent, 1.6)
+      // Searing: extra orange particles on impact, like a flame burst.
+      if (mods.includes("searing")) {
+        addParticles(s, eCx, eCy, 12, "#ff8030", 1.8)
+      }
       playSnd("dash")
       if (e.hp <= 0) {
         e.alive = false
@@ -731,6 +745,12 @@ export function stepGame(
         addParticles(s, eCx, eCy, 24, "#c08aff", 2.2)
         cb.addMaterials(stats.killMat)
         cb.grantXP(stats.killXp, "slain")
+        // Sanguine: lifesteal one heart per kill (capped at maxHp).
+        if (mods.includes("sanguine") && p.hp < p.maxHp) {
+          p.hp += 1
+          cb.setHp(p.hp)
+          addParticles(s, p.x + PLAYER_WIDTH / 2, p.y + PLAYER_HEIGHT / 2, 8, "#ff5070", 1.4)
+        }
         playSnd("big_collect")
         if (
           s.current === "delve" &&
@@ -919,6 +939,8 @@ export function makeInitialState(
       dead: false,
     },
     enemies: current === "delve" ? spawnEnemiesFrom(dl.enemySpawns, defeated) : [],
+    activeMods: [],
+    activeWeaponLevel: 0,
     defeatedEnemies: new Set<number>(defeated),
     delveCleared,
     portals,

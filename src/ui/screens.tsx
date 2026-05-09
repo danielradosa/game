@@ -9,6 +9,7 @@ import {
   ACCENTS,
   PROPOSED_MODS,
   MODS,
+  WEAPONS,
 } from "@/game/data"
 import { xpForLevel } from "@/game/constants"
 import { playSnd } from "@/game/audio"
@@ -551,6 +552,7 @@ interface DialogPanelProps {
   onTurnInQuest: () => void
   onCraft: (modId: string) => void
   onBuyMaxHp: () => void
+  onUpgradeWeapon: () => void
 }
 
 // Merchant constants — kept inline (not in data.ts) since they're trivial and
@@ -566,6 +568,7 @@ export function DialogPanel({
   onTurnInQuest,
   onCraft,
   onBuyMaxHp,
+  onUpgradeWeapon,
 }: DialogPanelProps) {
   if (npc === "merchant") {
     const atCap = hud.maxHpBonus >= MERCHANT_HP_MAX_BONUS
@@ -645,45 +648,107 @@ export function DialogPanel({
         <p className="text-stone-200 leading-relaxed mb-5">{text}</p>
 
         {canCraft && (
-          <div className="mb-5">
-            <div className="text-xs text-stone-400 uppercase tracking-wider mb-2">
+          <div className="mb-5 space-y-4">
+            <div className="text-xs text-stone-400 uppercase tracking-wider">
               Forge — {hud.materials} materials
             </div>
-            <div className="grid sm:grid-cols-2 gap-2">
-              {MODS.map((m) => {
-                const owned = hud.mods.includes(m.id)
-                const affordable = hud.materials >= m.cost
+
+            {/* Weapon upgrade — single button advancing the next tier. */}
+            {(() => {
+              const next = WEAPONS[hud.weaponLevel + 1]
+              const current = WEAPONS[hud.weaponLevel] ?? WEAPONS[0]!
+              if (!next) {
                 return (
+                  <div className="bg-stone-800/60 rounded-lg p-3 border border-stone-700">
+                    <div className="text-xs text-stone-400 uppercase tracking-wider mb-1">
+                      Weapon
+                    </div>
+                    <div className="text-sm text-yellow-200 font-semibold">
+                      ★ {current.name}
+                    </div>
+                    <div className="text-xs text-stone-400 mt-0.5">
+                      Honed to its limit · {current.damage} damage
+                    </div>
+                  </div>
+                )
+              }
+              const affordable = hud.materials >= next.cost
+              return (
+                <div className="bg-stone-800/60 rounded-lg p-3 border border-stone-700">
+                  <div className="text-xs text-stone-400 uppercase tracking-wider mb-1">
+                    Weapon · {current.name} ({current.damage} dmg)
+                  </div>
                   <button
-                    key={m.id}
-                    disabled={owned || !affordable}
-                    onClick={() => onCraft(m.id)}
+                    disabled={!affordable}
+                    onClick={onUpgradeWeapon}
                     className={
-                      "text-left p-3 rounded-lg border transition " +
-                      (owned
-                        ? "bg-yellow-300/10 border-yellow-300/40 cursor-default"
-                        : affordable
-                          ? "bg-stone-800 border-stone-700 hover:border-orange-300/60 hover:bg-stone-800/80"
-                          : "bg-stone-900 border-stone-800 opacity-50 cursor-not-allowed")
+                      "w-full text-left p-3 rounded-lg border transition mt-1 " +
+                      (affordable
+                        ? "bg-stone-900 border-stone-700 hover:border-orange-300/60"
+                        : "bg-stone-900 border-stone-800 opacity-50 cursor-not-allowed")
                     }
                   >
-                    <div
-                      className={
-                        "font-semibold text-sm " +
-                        (owned ? "text-yellow-200" : "text-stone-100")
-                      }
-                    >
-                      {owned ? "★ " : ""}
-                      {m.name}
+                    <div className="font-semibold text-sm text-stone-100">
+                      Upgrade → {next.name}
                     </div>
-                    <div className="text-xs text-stone-400 mt-0.5">{m.desc}</div>
+                    <div className="text-xs text-stone-400 mt-0.5">
+                      {next.desc} · {next.damage} damage
+                    </div>
                     <div className="text-[10px] text-stone-500 mt-1">
-                      {owned ? "Equipped" : `Cost: ${m.cost} materials`}
+                      Cost: {next.cost} materials
                     </div>
                   </button>
-                )
-              })}
-            </div>
+                </div>
+              )
+            })()}
+
+            {/* Mods grid, grouped by kind so weapon mods don't drown utility ones. */}
+            {(["weapon", "utility"] as const).map((kind) => {
+              const list = MODS.filter((m) => m.kind === kind)
+              if (list.length === 0) return null
+              return (
+                <div key={kind}>
+                  <div className="text-[11px] text-stone-500 uppercase tracking-wider mb-2">
+                    {kind === "weapon" ? "Weapon Mods" : "Utility Mods"}
+                  </div>
+                  <div className="grid sm:grid-cols-2 gap-2">
+                    {list.map((m) => {
+                      const owned = hud.mods.includes(m.id)
+                      const affordable = hud.materials >= m.cost
+                      return (
+                        <button
+                          key={m.id}
+                          disabled={owned || !affordable}
+                          onClick={() => onCraft(m.id)}
+                          className={
+                            "text-left p-3 rounded-lg border transition " +
+                            (owned
+                              ? "bg-yellow-300/10 border-yellow-300/40 cursor-default"
+                              : affordable
+                                ? "bg-stone-800 border-stone-700 hover:border-orange-300/60 hover:bg-stone-800/80"
+                                : "bg-stone-900 border-stone-800 opacity-50 cursor-not-allowed")
+                          }
+                        >
+                          <div
+                            className={
+                              "font-semibold text-sm " +
+                              (owned ? "text-yellow-200" : "text-stone-100")
+                            }
+                          >
+                            {owned ? "★ " : ""}
+                            {m.name}
+                          </div>
+                          <div className="text-xs text-stone-400 mt-0.5">{m.desc}</div>
+                          <div className="text-[10px] text-stone-500 mt-1">
+                            {owned ? "Equipped" : `Cost: ${m.cost} materials`}
+                          </div>
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
+              )
+            })}
           </div>
         )}
 

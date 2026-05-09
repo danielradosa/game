@@ -21,6 +21,9 @@ export interface HudState {
   // Permanent +max-HP buffs purchased from the Merchant. Applied to p.maxHp
   // wherever the live player is initialized (start, load, scene transition).
   maxHpBonus: number
+  // Equipped weapon tier — index into WEAPONS table in data.ts. 0 = default
+  // Worn Blade, increments via Elder forge upgrades.
+  weaponLevel: number
 }
 
 // What gets serialized into one save slot.

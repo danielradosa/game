@@ -221,6 +221,10 @@ export interface GameState {
   p: PlayerState
   enemies: Enemy[] // active for the current scene; rebuilt on transition
   projectiles: Projectile[] // active spitter orbs, cleared on scene transition
+  // Cached HUD-derived combat state — physics writes at the top of each
+  // tick so render can read mods/weaponLevel without a callback.
+  activeMods: readonly string[]
+  activeWeaponLevel: number
   // CURRENT delve session's progress. On portal entry these are restored from
   // the active portal's PortalState; on exit they're snapshotted back. Each
   // portal has its own independent delve persistence.
@@ -285,6 +289,9 @@ export interface PhysicsCallbacks {
   transitionToDelve: (portalId: string) => void
   transitionToOver: () => void
   hasSword: () => boolean
+  // Currently equipped weapon tier — physics reads this to compute slash
+  // damage. Index into WEAPONS in data.ts.
+  getWeaponLevel: () => number
   setHp: (hp: number) => void
   onDeath: () => void
   notify: (text: string, kind: NotifKind) => void

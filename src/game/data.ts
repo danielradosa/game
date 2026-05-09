@@ -1,5 +1,5 @@
 import { TILE_SIZE } from "@/game/constants"
-import type { Achievement, Mod, Palette, ProposedMod, Zone } from "@/game/types/data"
+import type { Achievement, Mod, Palette, ProposedMod, Weapon, Zone } from "@/game/types/data"
 
 // `as const satisfies readonly Zone[]` is the trick: `as const` preserves the
 // literal types ("z1", "Sunrise Clearing", etc.) so we can derive ZoneId
@@ -132,19 +132,72 @@ export const PROPOSED_MODS = [
 ] as const satisfies readonly ProposedMod[]
 
 // Active mods. Each id is special-cased in physics.ts where its effect lives.
+// Two flavors here: "utility" (movement, magnet) and "weapon" (combat
+// modifiers / slash visuals). The split is informal — the kind field just
+// drives which forge column the mod renders into.
 export const MODS = [
   {
     id: "quickfeet",
     name: "Quickfeet",
     desc: "+15% movement speed",
     cost: 5,
+    kind: "utility",
   },
   {
     id: "lodestone",
     name: "Lodestone",
     desc: "Greatly extends pickup magnet radius",
     cost: 5,
+    kind: "utility",
+  },
+  {
+    id: "searing",
+    name: "Searing Edge",
+    desc: "Slash leaves a fire trail · +1 damage",
+    cost: 8,
+    kind: "weapon",
+  },
+  {
+    id: "stormbound",
+    name: "Stormbound",
+    desc: "Crackling aura · slash reach +50%",
+    cost: 12,
+    kind: "weapon",
+  },
+  {
+    id: "sanguine",
+    name: "Sanguine",
+    desc: "Heal 1 HP per enemy slain",
+    cost: 15,
+    kind: "weapon",
   },
 ] as const satisfies readonly Mod[]
 
 export type ModId = (typeof MODS)[number]["id"]
+
+// Tiered weapons. weaponLevel in HudState indexes this array. Only the Elder
+// forge sells upgrades; cost is materials. Damage is the slash base — mods
+// stack on top via additive bonuses inside physics.ts.
+export const WEAPONS = [
+  {
+    level: 0,
+    name: "Worn Blade",
+    desc: "A nicked, balanced edge",
+    damage: 1,
+    cost: 0,
+  },
+  {
+    level: 1,
+    name: "Forged Blade",
+    desc: "Hammered true · sharper bite",
+    damage: 2,
+    cost: 10,
+  },
+  {
+    level: 2,
+    name: "Honed Blade",
+    desc: "Mirror-polished · cuts the air",
+    damage: 3,
+    cost: 25,
+  },
+] as const satisfies readonly Weapon[]
