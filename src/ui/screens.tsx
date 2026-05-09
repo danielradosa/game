@@ -1,4 +1,5 @@
 import { useState, type Dispatch, type SetStateAction } from "react"
+import { useAccount } from "@/auth/account-context"
 import {
   ZONES,
   ACHIEVEMENTS,
@@ -48,11 +49,21 @@ export function MainMenu({
   onToggleMute,
 }: MainMenuProps) {
   const hasSaves = manifest.length > 0
+  const { state: accountState } = useAccount()
   return (
     <div
-      className="w-full h-full min-h-screen flex items-center justify-center"
+      className="relative w-full h-full min-h-screen flex items-center justify-center"
       style={{ background: "linear-gradient(180deg,#1a0e2a 0%,#3a2050 50%,#7a4080 100%)" }}
     >
+      {accountState.status === "signed-in" && (
+        <button
+          onClick={onSettings}
+          className="absolute top-3 right-3 px-2 py-1 rounded bg-zinc-800/80 hover:bg-zinc-700 text-xs text-zinc-300 font-mono z-10"
+          title="Open Settings"
+        >
+          👤 {accountState.username}
+        </button>
+      )}
       <div className="text-center px-8">
         <div
           className="text-7xl font-bold tracking-tight text-white mb-2"

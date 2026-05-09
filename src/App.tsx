@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from "react"
+import { AccountProvider } from "@/auth/account-context"
 import { TILE_SIZE, VIEWPORT_WIDTH, VIEWPORT_HEIGHT, xpForLevel } from "@/game/constants"
 import {
   ZONES,
@@ -66,6 +67,14 @@ import type { HudState, PortalStateSerialized, SaveManifest } from "@/game/types
 const EMPTY_PORTAL_MAP: ReadonlyMap<string, PortalState> = new Map()
 
 export default function App() {
+  return (
+    <AccountProvider>
+      <AppContents />
+    </AccountProvider>
+  )
+}
+
+function AppContents() {
   const [scene, setScene] = useState<AppScene>("menu")
   const [showInv, setShowInv] = useState(false)
   const [paused, setPaused] = useState(false)
