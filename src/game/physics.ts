@@ -455,6 +455,20 @@ export function stepGame(
         }
       }
   }
+  // ---- map edge clamp (both overworld + delve) ----
+  // Hard wall at the left/right edges of the level so the player can't walk
+  // off into void. Applies after tile collision so an interior solid tile
+  // still wins; only the open-air ends of the map are caught here.
+  const maxX = lv.W * TILE_SIZE - PLAYER_WIDTH
+  if (p.x < 0) {
+    p.x = 0
+    p.vx = 0
+    p.wallDir = -1
+  } else if (p.x > maxX) {
+    p.x = maxX
+    p.vx = 0
+    p.wallDir = 1
+  }
 
   // ---- wall latch (hold X against wall in air) ----
   const pressingIntoWall = (p.wallDir > 0 && inp.right) || (p.wallDir < 0 && inp.left)
