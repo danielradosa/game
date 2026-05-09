@@ -1,5 +1,5 @@
-# Server Docker build context = repo root. This ignores everything the
-# server doesn't need so the build context stays small.
+# Shared by both server and frontend Docker builds (context = repo root).
+# Service-specific exclusions live in each Dockerfile via narrow COPY commands.
 node_modules
 **/node_modules
 dist
@@ -11,24 +11,6 @@ dist
 .env.*
 !.env.example
 
-# Frontend code - the server doesn't need it.
-public
-index.html
-vite.config.js
-vite.config.ts
-tailwind.config.js
-postcss.config.js
-src/App.tsx
-src/main.tsx
-src/index.css
-src/assets
-src/ui
-src/game
-src/auth
-src/net
-src/sync
-
-# Plans / docs / non-runtime
+# Plans / docs — never needed at runtime
 .planning
 docs
-*.md

@@ -1,0 +1,36 @@
+# syntax=docker/dockerfile:1.6
+# Frontend static-site build for the Drift game.
+# Build context is REPO ROOT.
+# Railway service config: dockerfilePath=Dockerfile.frontend, no rootDirectory.
+# VITE_API_BASE must be passed as a build arg so the bundle bakes the
+# production API origin in.
+
+# ---- builder ---------------------------------------------------------------
+FROM node:22-alpine AS builder
+WORKDIR /app
+ARG VITE_API_BASE
+ENV VITE_API_BASE=$VITE_API_BASE
+
+COPY package.json ./
+RUN npm install
+
+# Sources for Vite build. (No /public dir in this repo — assets live in src/assets/.)
+COPY index.html vite.config.js tsconfig.json tailwind.config.js postcss.config.js ./
+COPY src ./src
+
+RUN npm run build
+
+# ---- runtime ---------------------------------------------------------------
+FROM node:22-alpine AS runner
+WORKDIR /app
+RUN npm install --no-audit --no-fund -g serve@14
+
+COPY --from=builder /app/dist ./dist
+
+# Drop privileges per CWE-250.
+RUN chown -R node:node /app
+USER node
+
+EXPOSE 8080
+# `serve -s dist` enables SPA fallback to index.html for any unknown path.
+CMD ["serve", "-s", "dist", "-l", "8080"]
