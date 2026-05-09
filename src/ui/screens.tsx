@@ -607,7 +607,7 @@ export function DialogPanel({
       ? "You are full of vigor, friend. Nothing more I can offer."
       : "Steel for the soul, traveler. Five basic buys you another beat of the heart."
     return (
-      <div className="absolute inset-0 bg-black/70 backdrop-blur-sm flex items-end justify-center p-6">
+      <div className="absolute inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-6">
         <div className="bg-stone-900/95 border border-emerald-900 rounded-xl p-6 max-w-2xl w-full shadow-2xl">
           <div className="flex justify-between items-start mb-3">
             <div className="text-emerald-200 font-bold text-lg">The Merchant</div>
@@ -721,7 +721,7 @@ export function DialogPanel({
   const canCraft = stage === "done"
 
   return (
-    <div className="absolute inset-0 bg-black/70 backdrop-blur-sm flex items-end justify-center p-6">
+    <div className="absolute inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-6">
       <div className="bg-stone-900/95 border border-stone-700 rounded-xl p-6 max-w-2xl w-full shadow-2xl">
         <div className="flex justify-between items-start mb-3">
           <div className="text-orange-200 font-bold text-lg">The Elder</div>
