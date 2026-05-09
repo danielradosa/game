@@ -27,10 +27,13 @@ export interface Settings {
 }
 
 export const DEFAULT_KEYS: KeyBindings = {
-  moveLeft: "ArrowLeft",
-  moveRight: "ArrowRight",
-  moveUp: "ArrowUp",
-  moveDown: "ArrowDown",
+  // WASD-style platformer defaults. W is moveUp (used for aim-glide direction
+  // in air), Space is jump. Players who prefer arrows or W=jump can rebind
+  // through the Settings menu.
+  moveLeft: "a",
+  moveRight: "d",
+  moveUp: "w",
+  moveDown: "s",
   jump: " ", // Space
   dash: "Shift",
   interact: "e",

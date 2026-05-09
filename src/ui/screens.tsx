@@ -138,7 +138,7 @@ export function About({ onBack }: AboutProps) {
       style={{ background: "#1a0e2a" }}
     >
       <div className="max-w-xl text-stone-200 space-y-4 text-sm leading-relaxed">
-        <h2 className="text-2xl font-bold text-orange-200">Drift</h2>
+        <h2 className="text-2xl font-bold text-orange-200">Aether & Wild</h2>
         <p>
           A relaxing 2D platformer where exploration is its own reward. No timers, no quest
           pressure.
@@ -641,7 +641,7 @@ export function DialogPanel({
       : "Steel for the soul, traveler. Five basic buys you another beat of the heart."
     return (
       <div className="absolute inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-6">
-        <div className="bg-stone-900/95 border border-emerald-900 rounded-xl p-6 max-w-2xl w-full shadow-2xl">
+        <div className="bg-stone-900/95 border border-emerald-900 rounded-xl p-6 max-w-2xl w-full shadow-2xl max-h-[85vh] overflow-y-auto">
           <div className="flex justify-between items-start mb-3">
             <div className="text-emerald-200 font-bold text-lg">The Merchant</div>
             <button onClick={onClose} className="text-stone-400 hover:text-white">
@@ -745,7 +745,7 @@ export function DialogPanel({
   const stage = hud.questStage
   const text =
     stage === "intro"
-      ? "Wanderer. The delve below grows hungry, and its guardians wake. Take this blade — and quiet them."
+      ? "Wanderer. The Wild below grows hungry, and its guardians wake. Take this blade — and quiet them."
       : stage === "active"
         ? "The portal will not yield until the last guardian falls. Steady your hand."
         : stage === "cleared"
@@ -755,7 +755,7 @@ export function DialogPanel({
 
   return (
     <div className="absolute inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-6">
-      <div className="bg-stone-900/95 border border-stone-700 rounded-xl p-6 max-w-2xl w-full shadow-2xl">
+      <div className="bg-stone-900/95 border border-stone-700 rounded-xl p-6 max-w-2xl w-full shadow-2xl max-h-[85vh] overflow-y-auto">
         <div className="flex justify-between items-start mb-3">
           <div className="text-orange-200 font-bold text-lg">The Elder</div>
           <button onClick={onClose} className="text-stone-400 hover:text-white">

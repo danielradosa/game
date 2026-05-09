@@ -129,6 +129,15 @@ export default function App() {
   hudRef.current = hud
   const pausedRef = useRef<boolean>(paused)
   pausedRef.current = paused
+  // Scene ref so the once-mounted keydown handler can read the current scene
+  // without stale-closure bugs (the effect runs with [] deps).
+  const sceneRef = useRef<AppScene>(scene)
+  sceneRef.current = scene
+  // Where Settings was opened from. The Back button uses this so coming out
+  // of Settings restores the original context — back to the paused game when
+  // entered from the pause overlay, back to the main menu when entered from
+  // the title screen.
+  const settingsReturnRef = useRef<AppScene>("menu")
   const showInvRef = useRef<boolean>(false)
   showInvRef.current = showInv
   // Separate freeze gate for the perk picker. Mirrors hud.pendingPerkChoice so
@@ -235,15 +244,23 @@ export default function App() {
 
   const discover = useCallback(
     (zoneId: ZoneId): void => {
-      if (hudRef.current.discovered.includes(zoneId)) return
+      // Dedup INSIDE the functional updater so back-to-back discover calls in
+      // the same React batch can't both pass the guard and end up with the
+      // same zone in the array twice. Using hudRef.current here loses the race
+      // because the ref is only synced on render.
+      let added = false
+      setHud((h) => {
+        if (h.discovered.includes(zoneId)) return h
+        added = true
+        return { ...h, discovered: [...h.discovered, zoneId] }
+      })
+      if (!added) return
       const z = ZONES.find((x) => x.id === zoneId)!
-      setHud((h) => ({ ...h, discovered: [...h.discovered, zoneId] }))
       setZoneBanner({ name: z.name, t: performance.now() })
       grantXP(z.xp, "discovery")
       playSnd("discover")
       // Discovery achievement chain: 3 zones = Wayfarer, all = Cartographer.
-      // hudRef updates synchronously via the inline mutation in render, but
-      // we just called setHud — so check the projected length instead.
+      // hudRef hasn't committed yet, so use the projected length.
       const next = hudRef.current.discovered.length + 1
       if (next >= 3) grantAch("a4")
       if (next >= ZONES.length) grantAch("a5")
@@ -306,7 +323,7 @@ export default function App() {
       snapRenderPrev(s)
       setHud((h) => ({ ...h, inDelve: true }))
       grantAch("a7")
-      pushNotif("Entered the Delve", "discovery")
+      pushNotif("Entered the Wild", "discovery")
       playSnd("portal")
     },
     [grantAch, pushNotif],
@@ -378,7 +395,7 @@ export default function App() {
         pushNotif("The rift pulses with malice — it returns harder", "discovery")
       }
     } else {
-      pushNotif("Returned to the surface", "discovery")
+      pushNotif("Returned to the Aether", "discovery")
     }
 
     s.activePortalId = null
@@ -508,7 +525,7 @@ export default function App() {
         hudRef.current.materials.crystal,
       discovered: hudRef.current.discovered.length,
       date: new Date().toISOString(),
-      where: s.current === "delve" ? "In the Delve" : "Surface",
+      where: s.current === "delve" ? "In the Wild" : "Aether",
       rebirths: hudRef.current.rebirths,
       worldSeed: s.worldSeed ?? 0,
     }
@@ -558,7 +575,7 @@ export default function App() {
         hudRef.current.materials.crystal,
       discovered: hudRef.current.discovered.length,
       date: new Date().toISOString(),
-      where: s.current === "delve" ? "In the Delve" : "Surface",
+      where: s.current === "delve" ? "In the Wild" : "Aether",
       rebirths: hudRef.current.rebirths,
       worldSeed: s.worldSeed ?? 0,
     }
@@ -885,14 +902,25 @@ export default function App() {
       // Esc cascades through open overlays before exiting to menu.
       // Order: dialog → inventory → pause overlay → main menu.
       if (k === "Escape") {
+        // Esc cascades through open overlays. ORDER MATTERS:
+        //   dialog → close dialog
+        //   inventory → close inventory
+        //   pause overlay → unpause (DON'T exit to menu — Esc again handles that)
+        //   in play, no overlay → open pause
+        //   in any non-play scene (settings/loadmenu/about/creator) → back to menu
         if (dialogRef.current !== null) {
           setDialogNpc(null)
         } else if (showInvRef.current) {
           setShowInv(false)
         } else if (pausedRef.current) {
           setPaused(false)
-          setScene("menu")
-        } else {
+        } else if (sceneRef.current === "play") {
+          setPaused(true)
+        } else if (sceneRef.current === "settings") {
+          // Esc out of Settings restores the original context (paused game
+          // or main menu) — same path as the Back button.
+          setScene(settingsReturnRef.current)
+        } else if (sceneRef.current !== "menu") {
           setScene("menu")
         }
       }
@@ -1075,7 +1103,10 @@ export default function App() {
         onNew={() => setScene("creator")}
         onLoad={() => setScene("loadmenu")}
         onAbout={() => setScene("about")}
-        onSettings={() => setScene("settings")}
+        onSettings={() => {
+          settingsReturnRef.current = "menu"
+          setScene("settings")
+        }}
         onToggleMute={() => setMuted((v) => !v)}
       />
     )
@@ -1095,7 +1126,7 @@ export default function App() {
           setMutedAudio(next.muted)
           setMuted(next.muted)
         }}
-        onBack={() => setScene("menu")}
+        onBack={() => setScene(settingsReturnRef.current)}
       />
     )
   if (scene === "loadmenu")
@@ -1308,7 +1339,9 @@ export default function App() {
                 <button
                   onClick={() => {
                     playSnd("click")
-                    setPaused(false)
+                    // Keep paused=true so coming back from Settings restores
+                    // the pause overlay instead of dropping into live play.
+                    settingsReturnRef.current = "play"
                     setScene("settings")
                   }}
                   className="text-stone-300 hover:text-white text-sm"

@@ -760,9 +760,16 @@ export function stepGame(
   // ---- consumables (heal / storm vial) ----
   // Both fire on the keydown edge, ask App for a stack via cb.use*. App
   // returns true and decrements if the player had one; false if empty.
+  // Items are restricted to the Wild (delve scene). In the Aether (overworld)
+  // the player can't use combat consumables — keeps the surface peaceful and
+  // forces the player to ration their stash inside the run.
   if (inp.useHealEdge) {
     inp.useHealEdge = false
-    if (cb.useHeal()) {
+    if (s.current !== "delve") {
+      cb.notify("Items only work in the Wild", "xp")
+    } else if (cb.getConsumables().heal === 0) {
+      cb.notify("No Heal Potions left", "xp")
+    } else if (cb.useHeal()) {
       p.hp = Math.min(p.maxHp, p.hp + HEAL_AMOUNT)
       cb.setHp(p.hp)
       addParticles(s, p.x + PLAYER_WIDTH / 2, p.y + PLAYER_HEIGHT / 2, 18, "#ff6080", 1.8)
@@ -771,7 +778,11 @@ export function stepGame(
   }
   if (inp.useStormEdge) {
     inp.useStormEdge = false
-    if (cb.useStorm()) {
+    if (s.current !== "delve") {
+      cb.notify("Items only work in the Wild", "xp")
+    } else if (cb.getConsumables().storm === 0) {
+      cb.notify("No Storm Vials left", "xp")
+    } else if (cb.useStorm()) {
       const cx = p.x + PLAYER_WIDTH / 2
       const cy = p.y + PLAYER_HEIGHT / 2
       const radSq = STORM_RADIUS * STORM_RADIUS
