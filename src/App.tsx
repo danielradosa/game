@@ -1113,7 +1113,23 @@ function AppContents() {
         // Auto-advance the quest line so the dialog reflects "return to me"
         // on the next interaction. Safe to call repeatedly — we only bump
         // when the player is actually mid-quest.
-        setHud((h) => (h.questStage === "active" ? { ...h, questStage: "cleared" } : h))
+        // Also pay a clear bounty: 6 portals × (5 essence + 1 crystal) =
+        // 30 essence + 6 crystal, which keeps the rebirth economy
+        // (5 crystal + 30 essence) reliably achievable independent of
+        // burrower-spawn RNG. Mirrors the addMaterials path's a12
+        // Crystal Heart achievement check on first crystal.
+        setHud((h) => {
+          const nextMats = clampedAddDelta(h.materials, { essence: 5, crystal: 1 })
+          if (h.materials.crystal === 0 && nextMats.crystal > 0) {
+            queueMicrotask(() => grantAch("a12"))
+          }
+          return {
+            ...h,
+            materials: nextMats,
+            questStage: h.questStage === "active" ? "cleared" : h.questStage,
+          }
+        })
+        pushNotif("Delve bounty: +5 essence, +1 crystal", "discovery")
       },
       getMods: () => hudRef.current.mods,
       hasPerk: (id) => hudRef.current.perks.includes(id),
