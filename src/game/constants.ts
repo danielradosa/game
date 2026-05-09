@@ -73,7 +73,7 @@ export const ENEMY_STATS = {
   ghost: {
     w: 26,
     h: 26,
-    hp: 2,
+    hp: 8,
     chaseSpeed: 1.5,
     killXp: 25,
     killDrops: { basic: 1 },
@@ -81,7 +81,7 @@ export const ENEMY_STATS = {
   slammer: {
     w: 36,
     h: 36,
-    hp: 3,
+    hp: 30,
     chaseSpeed: 0.9,
     lungeSpeed: 6.5,
     windupFrames: 32,
@@ -92,7 +92,7 @@ export const ENEMY_STATS = {
   spitter: {
     w: 22,
     h: 22,
-    hp: 1,
+    hp: 10,
     chaseSpeed: 0.5,
     kiteDistance: 240, // px; spitter drifts away when player gets closer
     fireInterval: 90, // frames between shots
@@ -102,7 +102,7 @@ export const ENEMY_STATS = {
   burrower: {
     w: 32,
     h: 28,
-    hp: 3,
+    hp: 25,
     chaseSpeed: 1.1,
     diveCooldown: 180, // ticks above ground between dives
     diveDuration: 120, // ticks underground (invulnerable + tunneling toward player)
@@ -124,5 +124,5 @@ export const PROJECTILE_RADIUS = 6
 // when a storm vial is uncorked; STORM_DAMAGE is per enemy hit.
 export const HEAL_AMOUNT = 2
 export const STORM_RADIUS = 140
-export const STORM_DAMAGE = 3
+export const STORM_DAMAGE = 25
 export const STORM_IFRAMES = 30 // brief player invuln after the blast

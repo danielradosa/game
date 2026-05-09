@@ -217,10 +217,7 @@ export function LoadMenu({ manifest, onLoad, onDelete, onBack }: LoadMenuProps) 
   // Last 6 hex chars of the world seed. Coerce to unsigned first so
   // mulberry32's negative outputs stringify cleanly.
   const fmtSeed = (seed: number | undefined): string =>
-    ((seed ?? 0) >>> 0)
-      .toString(16)
-      .padStart(6, "0")
-      .slice(-6)
+    ((seed ?? 0) >>> 0).toString(16).padStart(6, "0").slice(-6)
   return (
     <div
       className="w-full min-h-screen flex items-center justify-center p-6"

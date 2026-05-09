@@ -207,6 +207,18 @@ export interface Projectile {
   life: number
 }
 
+// Floating damage number — spawns on every slash/storm hit, drifts upward
+// and fades. Crits render larger + red so the burst reads visually.
+export interface DamageNumber {
+  x: number
+  y: number
+  vy: number // upward drift
+  value: number
+  crit: boolean
+  life: number // ticks remaining
+  max: number // initial life for fade calc
+}
+
 // ===== Portal state machine =====
 // One per overworld portal tile. seed + tier identify the delve layout;
 // defeatedEnemies + cleared remember per-portal progress so re-entering the
@@ -252,6 +264,9 @@ export interface GameState {
   activeMods: readonly string[]
   activeWeaponLevel: number
   activeHasSword: boolean
+  // Cached rebirths count — used to scale enemy HP modestly each rebirth so
+  // late-game runs don't trivialize fresh portals. Read via cb.getRebirths().
+  activeRebirths: number
   // CURRENT delve session's progress. On portal entry these are restored from
   // the active portal's PortalState; on exit they're snapshotted back. Each
   // portal has its own independent delve persistence.
@@ -273,6 +288,9 @@ export interface GameState {
   phoenixUsed: boolean
   collected: Set<string> // "<scene>:<tx>,<ty>" keys of pickups already grabbed
   particles: Particle[]
+  // Floating damage numbers — spawned on every slash/storm hit. Stepped each
+  // tick (drift upward + decay) and rendered above enemies.
+  damageNumbers: DamageNumber[]
   bgPart: BgParticle[]
   time: number
   hasMoved: boolean
@@ -338,6 +356,9 @@ export interface PhysicsCallbacks {
   // Perk lookup — read every tick like getMods. Effects keyed off PerkId in
   // physics.ts (e.g. quickfeet_plus → maxAirDashes = 2).
   hasPerk: (id: PerkId) => boolean
+  // Rebirths count — physics caches this each tick to scale enemy HP. Also
+  // used by spawnEnemiesFrom callers to compute the spawn-time hp multiplier.
+  getRebirths: () => number
 }
 
 export type NpcId = "elder" | "merchant"

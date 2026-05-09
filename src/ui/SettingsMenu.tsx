@@ -76,15 +76,13 @@ export function SettingsMenu({ initial, onApply, onBack }: SettingsMenuProps) {
       }
       // Conflict detection — find any OTHER action already bound to this key.
       // If found, prompt for swap; on accept, swap so neither slot is empty.
-      const conflictAction = (
-        Object.entries(settings.keys) as [keyof KeyBindings, string][]
-      ).find(([action, key]) => action !== listening && key === k)
+      const conflictAction = (Object.entries(settings.keys) as [keyof KeyBindings, string][]).find(
+        ([action, key]) => action !== listening && key === k,
+      )
       if (conflictAction) {
         const [otherAction] = conflictAction
         const otherLabel = CONTROL_ROWS.find((r) => r.key === otherAction)?.label ?? otherAction
-        const ok = window.confirm(
-          `"${formatKey(k)}" is already bound to "${otherLabel}". Swap?`,
-        )
+        const ok = window.confirm(`"${formatKey(k)}" is already bound to "${otherLabel}". Swap?`)
         if (!ok) {
           setListening(null)
           return
@@ -167,9 +165,7 @@ export function SettingsMenu({ initial, onApply, onBack }: SettingsMenuProps) {
               max={100}
               step={1}
               value={settings.volume}
-              onChange={(e) =>
-                setSettings((s) => ({ ...s, volume: Number(e.target.value) }))
-              }
+              onChange={(e) => setSettings((s) => ({ ...s, volume: Number(e.target.value) }))}
               className="w-full accent-orange-300"
             />
           </div>
@@ -197,8 +193,8 @@ export function SettingsMenu({ initial, onApply, onBack }: SettingsMenuProps) {
             </button>
           </div>
           <p className="text-xs text-stone-400">
-            Browsers don't allow auto-entering fullscreen on load — your preference is
-            remembered, but you'll re-enter manually each session.
+            Browsers don't allow auto-entering fullscreen on load — your preference is remembered,
+            but you'll re-enter manually each session.
           </p>
           {/* One-shot tutorial re-trigger. Checked here, the welcome overlay
               mounts on the next entry into "play" and the flag flips back to

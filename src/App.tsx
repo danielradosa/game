@@ -25,7 +25,13 @@ import {
 } from "@/game/shop"
 import { generateDelve, generateOverworld } from "@/game/levels"
 import { freshSeed } from "@/game/rng"
-import { stepGame, makeInitialState, snapRenderPrev, spawnEnemiesFrom } from "@/game/physics"
+import {
+  stepGame,
+  makeInitialState,
+  snapRenderPrev,
+  spawnEnemiesFrom,
+  enemyHpMultiplier,
+} from "@/game/physics"
 import { PLAYER_MAX_HP } from "@/game/constants"
 import { draw, drawPaused } from "@/game/render"
 import { playSnd, setMuted as setMutedAudio, setVolume as setVolumeAudio } from "@/game/audio"
@@ -316,7 +322,10 @@ export default function App() {
       s.p.vy = 0
       s.p.dashFrames = 0
       s.p.dashCool = 0
-      s.enemies = spawnEnemiesFrom(s.dl.enemySpawns, s.defeatedEnemies)
+      // Scale enemy HP by progression so each weapon upgrade / rebirth
+      // doesn't trivialize fresh portals. +15% per weaponLevel + 10% per rebirth.
+      const hpMul = enemyHpMultiplier(hudRef.current.weaponLevel, hudRef.current.rebirths)
+      s.enemies = spawnEnemiesFrom(s.dl.enemySpawns, s.defeatedEnemies, hpMul)
       s.projectiles = []
       s.p.hp = s.p.maxHp
       setHp(s.p.hp)
@@ -770,6 +779,10 @@ export default function App() {
         portals,
         activePortalId,
         worldSeed,
+        // Pass saved progression so mid-delve loads spawn enemies with the
+        // same HP scale a fresh delve transition would apply.
+        data.hud.weaponLevel ?? 0,
+        data.hud.rebirths ?? 0,
       )
       setCharacter(data.character)
       // Older saves predate the quest/mods/sword fields — default forward
@@ -1040,6 +1053,7 @@ export default function App() {
       },
       getMods: () => hudRef.current.mods,
       hasPerk: (id) => hudRef.current.perks.includes(id),
+      getRebirths: () => hudRef.current.rebirths,
     }
     // Physics is authored at 60 Hz (per-tick velocities, frame counters,
     // exponential frictions). To stay identical on 144 Hz / 240 Hz monitors we
@@ -1269,8 +1283,7 @@ export default function App() {
           <div>
             <b>Move</b> {formatKey(settings.keys.moveLeft)}/{formatKey(settings.keys.moveRight)} ·{" "}
             <b>Jump</b> {formatKey(settings.keys.jump)} · <b>Dash</b>{" "}
-            {formatKey(settings.keys.dash)} (8-dir) · <b>Use</b>{" "}
-            {formatKey(settings.keys.interact)}
+            {formatKey(settings.keys.dash)} (8-dir) · <b>Use</b> {formatKey(settings.keys.interact)}
           </div>
           <div className="text-stone-400">Tab — inventory · Esc — pause · M — mute</div>
         </div>

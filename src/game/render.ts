@@ -74,6 +74,7 @@ export function draw(ctx: Ctx, s: GameState, ch: Character, alpha: number): void
   drawAuras(ctx, s)
   drawPlayer(ctx, s, ch)
   drawSlash(ctx, s, ch)
+  drawDamageNumbers(ctx, s)
   ctx.restore()
   const vg = ctx.createRadialGradient(
     VIEWPORT_WIDTH / 2,
@@ -728,6 +729,30 @@ function drawProjectiles(ctx: Ctx, s: GameState): void {
     ctx.arc(pr.x - 1.5, pr.y - 1.5, 1.5, 0, Math.PI * 2)
     ctx.fill()
   }
+  ctx.globalAlpha = 1
+}
+
+// Floating damage numbers — drawn LAST (after the player) so the burst
+// visual sits on top of everything. Crits render larger + red with a thin
+// black outline so they pop against any background. Fade in the last 18
+// ticks of life via globalAlpha.
+function drawDamageNumbers(ctx: Ctx, s: GameState): void {
+  if (s.damageNumbers.length === 0) return
+  ctx.save()
+  ctx.textAlign = "center"
+  ctx.textBaseline = "middle"
+  for (const dn of s.damageNumbers) {
+    ctx.globalAlpha = Math.min(1, dn.life / 18)
+    ctx.fillStyle = dn.crit ? "#ff7050" : "#ffffff"
+    ctx.font = dn.crit ? "bold 16px sans-serif" : "bold 12px sans-serif"
+    if (dn.crit) {
+      ctx.strokeStyle = "rgba(0,0,0,0.7)"
+      ctx.lineWidth = 3
+      ctx.strokeText(String(dn.value), dn.x, dn.y)
+    }
+    ctx.fillText(String(dn.value), dn.x, dn.y)
+  }
+  ctx.restore()
   ctx.globalAlpha = 1
 }
 

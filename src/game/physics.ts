@@ -53,6 +53,38 @@ import type {
   PortalState,
 } from "@/game/types/physics"
 
+// Damage roll with variance + crits. base = weapon damage + mod bonuses.
+// Variance: ±20% spread (random in [0.80, 1.20]).
+// Crit: 10% chance for 1.8× multiplier — caller can use the `crit` flag for
+// visual feedback (floating damage number colored differently on crits).
+function rollDamage(base: number): { value: number; crit: boolean } {
+  const variance = 0.8 + Math.random() * 0.4
+  const crit = Math.random() < 0.1
+  const mul = crit ? 1.8 : 1
+  return { value: Math.max(1, Math.round(base * variance * mul)), crit }
+}
+
+// Spawn a floating damage number at (x, y) with a small horizontal jitter
+// so stacked hits don't perfectly overlap. Drifts upward and fades over
+// 36 ticks (~0.6s @ 60Hz).
+export function spawnDamageNumber(
+  s: GameState,
+  x: number,
+  y: number,
+  value: number,
+  crit: boolean,
+): void {
+  s.damageNumbers.push({
+    x: x + (Math.random() - 0.5) * 12,
+    y,
+    vy: -1.2 - Math.random() * 0.5,
+    value,
+    crit,
+    life: 36,
+    max: 36,
+  })
+}
+
 const BULLET_VX = 11.5 // bullet jump horizontal speed
 const BULLET_VY = -11.5 // bullet jump vertical speed
 const SLIDE_FRICTION = 0.965 // very low decay during slide
@@ -104,14 +136,23 @@ export function cellKey(s: GameState, tx: number, ty: number): string {
   return `${s.current}:${tx},${ty}`
 }
 
+// Compute the per-spawn HP multiplier from progression — called both at
+// spawn sites in App.tsx (transition into delve) and at the in-physics
+// respawn-after-death path. Keeps the formula in one spot.
+export function enemyHpMultiplier(weaponLevel: number, rebirths: number): number {
+  return 1 + weaponLevel * 0.15 + rebirths * 0.1
+}
+
 export function spawnEnemiesFrom(
   spawns: readonly EnemySpawn[],
   defeated: ReadonlySet<number>,
+  hpMul = 1,
 ): Enemy[] {
   const out: Enemy[] = []
   spawns.forEach((sp, i) => {
     if (defeated.has(i)) return
     const stats = ENEMY_STATS[sp.type]
+    const scaledHp = Math.max(1, Math.round(stats.hp * hpMul))
     out.push({
       type: sp.type,
       spawnIndex: i,
@@ -119,8 +160,8 @@ export function spawnEnemiesFrom(
       y: sp.y,
       vx: 0,
       vy: 0,
-      hp: stats.hp,
-      maxHp: stats.hp,
+      hp: scaledHp,
+      maxHp: scaledHp,
       iframes: 0,
       alive: true,
       facing: 1,
@@ -170,6 +211,7 @@ export function stepGame(
   s.activeMods = mods
   s.activeWeaponLevel = cb.getWeaponLevel()
   s.activeHasSword = cb.hasSword()
+  s.activeRebirths = cb.getRebirths()
 
   // Snapshot pre-tick state so the renderer can lerp between this and the
   // post-tick state. Teleports below re-snap to avoid a smear across the cut.
@@ -263,7 +305,8 @@ export function stepGame(
     // next to them when they died. defeatedEnemies are preserved so the
     // run progress isn't lost — only positions reset.
     if (s.current === "delve") {
-      s.enemies = spawnEnemiesFrom(s.dl.enemySpawns, s.defeatedEnemies)
+      const hpMul = enemyHpMultiplier(s.activeWeaponLevel, s.activeRebirths)
+      s.enemies = spawnEnemiesFrom(s.dl.enemySpawns, s.defeatedEnemies, hpMul)
     }
     snapRenderPrev(s)
   }
@@ -795,7 +838,9 @@ export function stepGame(
         const dy = eCy - cy
         if (dx * dx + dy * dy >= radSq) continue
         // Storm pierces underground burrowers — electric arc reaches anywhere.
-        e.hp -= STORM_DAMAGE
+        const { value: dmg, crit } = rollDamage(STORM_DAMAGE)
+        e.hp -= dmg
+        spawnDamageNumber(s, eCx, eCy - eStats.h / 2 - 4, dmg, crit)
         e.iframes = ENEMY_HIT_IFRAMES
         if (e.hp <= 0) {
           e.alive = false
@@ -856,10 +901,13 @@ export function stepGame(
   const slashReach = SLASH_REACH * reachMul
   const pHalfW = PLAYER_WIDTH / 2 + slashReach
   const pHalfH = PLAYER_HEIGHT / 2 + slashReach
-  // Per-frame slash damage = weapon tier base + flat mod bonuses. Recompute
-  // each tick so changing weapons / mods mid-delve takes effect immediately.
+  // Per-frame slash base — weapon tier damage + mod bonuses. The actual
+  // hit value is rolled each strike via rollDamage() (variance + crits) so
+  // this is just the centerpoint. Searing now scales as a percentage of the
+  // base so it tracks with weapon upgrades instead of being a flat +1 that
+  // gets eaten by the new ±20% spread.
   const weapon = WEAPONS[cb.getWeaponLevel()] ?? WEAPONS[0]!
-  const slashDamage = weapon.damage + (mods.includes("searing") ? 1 : 0)
+  const slashBase = weapon.damage + (mods.includes("searing") ? Math.round(weapon.damage * 0.3) : 0)
 
   for (const e of s.enemies) {
     if (!e.alive) continue
@@ -1010,7 +1058,9 @@ export function stepGame(
         ? Math.max(1, Math.floor(SLASH_COOLDOWN * 0.85))
         : SLASH_COOLDOWN
       p.facing = eCx > pCx ? 1 : -1
-      e.hp -= slashDamage
+      const { value: dmg, crit } = rollDamage(slashBase)
+      e.hp -= dmg
+      spawnDamageNumber(s, eCx, eCy - eH / 2 - 4, dmg, crit)
       e.iframes = ENEMY_HIT_IFRAMES
       e.vx = (eCx > pCx ? 1 : -1) * ENEMY_KNOCKBACK
       // Glacial Edge — apply chill on hit. Stacks (refreshes) on subsequent hits.
@@ -1153,6 +1203,14 @@ export function stepGame(
     pt.vy += pt.g || 0.1
     pt.life--
   }
+  // Floating damage numbers — drift upward, decay, fade. Friction on vy so
+  // the rise eases out instead of sliding off-screen.
+  for (const dn of s.damageNumbers) {
+    dn.y += dn.vy
+    dn.vy *= 0.95
+    dn.life--
+  }
+  s.damageNumbers = s.damageNumbers.filter((dn) => dn.life > 0)
   for (const bp of s.bgPart) {
     bp.y += bp.sp
     bp.x += Math.sin((s.time + bp.x) * 0.001) * 0.3
@@ -1184,6 +1242,12 @@ export function makeInitialState(
   portals: Map<string, PortalState> = new Map(),
   activePortalId: string | null = null,
   worldSeed = 0,
+  // Progression hooks for the initial enemy spawn — applied only when the
+  // saved scene is "delve" (otherwise no enemies are seeded). Caller passes
+  // hud.weaponLevel / hud.rebirths so a mid-delve load matches a fresh
+  // delve transition's hpMul. Default to 0/0 for fresh starts.
+  initialWeaponLevel = 0,
+  initialRebirths = 0,
 ): GameState {
   const lv = current === "delve" ? dl : ow
   const st: GameState = {
@@ -1230,10 +1294,18 @@ export function makeInitialState(
       slashCool: 0,
       dead: false,
     },
-    enemies: current === "delve" ? spawnEnemiesFrom(dl.enemySpawns, defeated) : [],
+    enemies:
+      current === "delve"
+        ? spawnEnemiesFrom(
+            dl.enemySpawns,
+            defeated,
+            enemyHpMultiplier(initialWeaponLevel, initialRebirths),
+          )
+        : [],
     activeMods: [],
-    activeWeaponLevel: 0,
+    activeWeaponLevel: initialWeaponLevel,
     activeHasSword: false,
+    activeRebirths: initialRebirths,
     defeatedEnemies: new Set<number>(defeated),
     delveCleared,
     portals,
@@ -1243,6 +1315,7 @@ export function makeInitialState(
     phoenixUsed: false,
     collected,
     particles: [],
+    damageNumbers: [],
     projectiles: [],
     bgPart: [],
     time: 0,
