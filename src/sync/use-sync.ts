@@ -4,6 +4,7 @@ import { api, ApiError } from "@/net/api"
 import { fetchManifest, getSave, persistManifest, setSave } from "@/game/save"
 import { findConflicts, type SyncConflict } from "./conflict"
 import type { SaveData, SaveMeta } from "@/shared/save"
+import type { Settings } from "@/shared/settings"
 
 export interface SyncState {
   conflicts: SyncConflict[]
@@ -20,6 +21,8 @@ export interface SyncActions {
   resolveConflict: (slotKey: string, choice: "cloud" | "local") => Promise<void>
   pushSave: (slotKey: string, data: SaveData, meta: SaveMeta) => Promise<void>
   deleteRemote: (slotKey: string) => Promise<void>
+  pushSettings: (data: Settings) => Promise<void>
+  pullSettings: () => Promise<Settings | null>
 }
 
 export function useSync(): { state: SyncState; actions: SyncActions } {
@@ -148,6 +151,30 @@ export function useSync(): { state: SyncState; actions: SyncActions } {
     [account.status],
   )
 
+  const pushSettings = useCallback(
+    async (data: Settings): Promise<void> => {
+      if (account.status !== "signed-in") return
+      if (!data.syncToAccount) return
+      try {
+        await api.settingsPut({ data: data as unknown as Record<string, unknown> })
+      } catch {
+        // best-effort
+      }
+    },
+    [account.status],
+  )
+
+  const pullSettings = useCallback(async (): Promise<Settings | null> => {
+    if (account.status !== "signed-in") return null
+    try {
+      const r = await api.settingsGet()
+      return r.data as Settings
+    } catch (e) {
+      if (e instanceof ApiError && e.code === "SETTINGS_NOT_FOUND") return null
+      return null
+    }
+  }, [account.status])
+
   // Pull manifest on transition to signed-in.
   useEffect(() => {
     if (account.status === "signed-in") {
@@ -155,5 +182,5 @@ export function useSync(): { state: SyncState; actions: SyncActions } {
     }
   }, [account.status, pullManifest])
 
-  return { state, actions: { pullManifest, resolveConflict, pushSave, deleteRemote } }
+  return { state, actions: { pullManifest, resolveConflict, pushSave, deleteRemote, pushSettings, pullSettings } }
 }

@@ -225,6 +225,22 @@ function AppContents() {
     setUploadPrompt({ count: localCount, busy: false })
   }, [account.state])
 
+  // On sign-in, if the user has opted in to sync, pull settings from the
+  // server and apply them locally. Intentionally keyed only on status so this
+  // fires once on transition, not on every settings change.
+  useEffect(() => {
+    if (account.state.status !== "signed-in") return
+    if (!settings.syncToAccount) return
+    void (async () => {
+      const remote = await sync.actions.pullSettings()
+      if (remote) {
+        setSettings(remote)
+        saveSettings(remote)
+      }
+    })()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [account.state.status])
+
   const pushNotif = useCallback((text: string, kind: NotifKind): void => {
     const id = Math.random().toString(36).slice(2)
     setNotifs((n) => [...n, { id, text, kind, born: performance.now() }])
@@ -1187,6 +1203,7 @@ function AppContents() {
           setVolumeAudio(next.volume)
           setMutedAudio(next.muted)
           setMuted(next.muted)
+          void sync.actions.pushSettings(next)
         }}
         onBack={() => setScene(settingsReturnRef.current)}
       />
