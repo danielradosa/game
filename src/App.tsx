@@ -9,9 +9,10 @@ import {
   PANTS,
   ACCENTS,
   MODS,
+  PERKS,
   WEAPONS,
 } from "@/game/data"
-import type { AchievementId, ZoneId } from "@/game/data"
+import type { AchievementId, PerkId, ZoneId } from "@/game/data"
 import type { Cost, Materials } from "@/game/economy"
 import { canAfford, clampedAddDelta, spend, formatMissing } from "@/game/economy"
 import {
@@ -37,6 +38,7 @@ import {
   InventoryPanel,
   DialogPanel,
 } from "@/ui/screens"
+import { PerkPicker } from "@/ui/PerkPicker"
 import type {
   AppNotification,
   AppScene,
@@ -81,6 +83,8 @@ export default function App() {
     weaponLevel: 0,
     consumables: { heal: 0, storm: 0 },
     rebirths: 0,
+    perks: [],
+    pendingPerkChoice: null,
   })
   const [hp, setHp] = useState<number>(PLAYER_MAX_HP)
   const [dialogNpc, setDialogNpc] = useState<NpcId | null>(null)
@@ -114,6 +118,12 @@ export default function App() {
   pausedRef.current = paused
   const showInvRef = useRef<boolean>(false)
   showInvRef.current = showInv
+  // Separate freeze gate for the perk picker. Mirrors hud.pendingPerkChoice so
+  // the imperative loop can short-circuit a tick without going through React.
+  // We don't piggyback on `paused` because the pause overlay UI would then
+  // stack on top of the picker.
+  const perkPendingRef = useRef<boolean>(false)
+  perkPendingRef.current = hud.pendingPerkChoice !== null
 
   useEffect(() => {
     setMutedAudio(muted)
@@ -157,7 +167,21 @@ export default function App() {
           pushNotif("Level " + u, "level")
           playSnd("level_up")
         })
-        return { ...h, xp, level: lvl }
+        // Perk milestones: queue a picker for the *next unfilled slot whose
+        // threshold has been met*. Slots are gated purely by perks.length and
+        // the current level — never by the pre-grant level — so a single XP
+        // grant that crosses multiple milestones (e.g. 4 -> 11) still queues
+        // the lowest unfilled slot (here, 5). After the user picks at 5,
+        // perks.length increases and the next grant queues 10, etc. Once all
+        // three slots are filled, no further pending choices fire because
+        // perks.length < 3 becomes false.
+        let pending: 5 | 10 | 15 | null = h.pendingPerkChoice
+        if (pending === null) {
+          if (h.perks.length < 1 && lvl >= 5) pending = 5
+          else if (h.perks.length < 2 && lvl >= 10) pending = 10
+          else if (h.perks.length < 3 && lvl >= 15) pending = 15
+        }
+        return { ...h, xp, level: lvl, pendingPerkChoice: pending }
       })
       // a9 — Climbing the Ladder fires the moment level reaches 5. We re-read
       // hudRef on the next microtask so the setHud above has committed.
@@ -331,7 +355,9 @@ export default function App() {
     // window.confirm matches the existing dialog UX (no custom modal
     // shell — Phase D will revisit). Cancel exits cleanly without
     // any side effects.
-    if (!window.confirm("Rebirth: reroll the world. Keep level, perks, weapon, mods, items. Proceed?"))
+    if (
+      !window.confirm("Rebirth: reroll the world. Keep level, perks, weapon, mods, items. Proceed?")
+    )
       return
 
     // Spend cost and bump rebirth counter.
@@ -494,6 +520,7 @@ export default function App() {
     const tick = (): void => {
       if (pausedRef.current) return
       if (dialogRef.current !== null) return
+      if (perkPendingRef.current) return
       autosave()
     }
     const handle = window.setInterval(tick, 20_000)
@@ -533,6 +560,8 @@ export default function App() {
       weaponLevel: 0,
       consumables: { heal: 0, storm: 0 },
       rebirths: 0,
+      perks: [],
+      pendingPerkChoice: null,
     })
     setHp(PLAYER_MAX_HP)
     setNotifs([])
@@ -653,6 +682,9 @@ export default function App() {
         consumables: data.hud.consumables ?? { heal: 0, storm: 0 },
         // Forward-compat: pre-Phase-C-Task-4 saves don't have rebirths.
         rebirths: data.hud.rebirths ?? 0,
+        // Forward-compat: pre-Phase-C-Task-5 saves don't have perks.
+        perks: data.hud.perks ?? [],
+        pendingPerkChoice: data.hud.pendingPerkChoice ?? null,
         inDelve: data.pos.scene === "delve",
       })
       // Apply HP bonus to the live player so the loaded run starts with the
@@ -832,6 +864,7 @@ export default function App() {
         setHud((h) => (h.questStage === "active" ? { ...h, questStage: "cleared" } : h))
       },
       getMods: () => hudRef.current.mods,
+      hasPerk: (id) => hudRef.current.perks.includes(id),
     }
     // Physics is authored at 60 Hz (per-tick velocities, frame counters,
     // exponential frictions). To stay identical on 144 Hz / 240 Hz monitors we
@@ -850,7 +883,7 @@ export default function App() {
         raf = requestAnimationFrame(loop)
         return
       }
-      const frozen = pausedRef.current || dialogRef.current !== null
+      const frozen = pausedRef.current || dialogRef.current !== null || perkPendingRef.current
       if (!frozen) {
         accumulator += frame
         let ticks = 0
@@ -864,8 +897,14 @@ export default function App() {
         draw(ctx, s, charRef.current, alpha)
       } else if (pausedRef.current) {
         drawPaused(ctx)
+      } else if (perkPendingRef.current) {
+        // Perk picker is open — world stays visible but does not tick.
+        accumulator = 0
+        draw(ctx, s, charRef.current, 1)
       } else {
-        // Dialog open — keep the world drawn but don't tick physics.
+        // Dialog open — same draw behavior as the perk-picker arm, but kept
+        // distinct so the intent is documented and not load-bearing on
+        // branch order.
         accumulator = 0
         draw(ctx, s, charRef.current, 1)
       }
@@ -1245,6 +1284,22 @@ export default function App() {
             }}
             portals={stateRef.current?.portals ?? EMPTY_PORTAL_MAP}
             onRebirth={handleRebirth}
+          />
+        )}
+        {hud.pendingPerkChoice !== null && (
+          <PerkPicker
+            milestone={hud.pendingPerkChoice}
+            alreadyPicked={hud.perks}
+            onPick={(id: PerkId) => {
+              const perk = PERKS.find((p) => p.id === id)
+              setHud((h) => ({
+                ...h,
+                perks: [...h.perks, id],
+                pendingPerkChoice: null,
+              }))
+              pushNotif(`Perk acquired: ${perk?.name ?? id}`, "ach")
+              playSnd("level_up")
+            }}
           />
         )}
       </div>

@@ -308,7 +308,7 @@ export function stepGame(
     p.coyote = 0
     p.sliding = false
     p.jumpsLeft = 1 // can still double jump after
-    p.airDashUsed = false
+    p.airDashesUsed = 0
     p.aimGlideUsed = false
     p.wallLatched = false
     p.squash = 0.6
@@ -326,7 +326,7 @@ export function stepGame(
       p.vy = JUMP_VELOCITY * 0.94
       p.vx = -wd * runMax * 1.15
       p.jumpsLeft = 1
-      p.airDashUsed = false // wall jump refreshes air abilities
+      p.airDashesUsed = 0 // wall jump refreshes air abilities
       p.aimGlideUsed = false
       p.wallLatched = false
       playSnd("jump")
@@ -365,29 +365,34 @@ export function stepGame(
           s.hasDashed = true
           cb.grantAch("a3")
         }
-      } else if (!p.airDashUsed) {
-        // AIR DASH — 8-directional, 1 charge per airborne sequence
-        let dx = 0,
-          dy = 0
-        if (inp.left) dx -= 1
-        if (inp.right) dx += 1
-        if (inp.up) dy -= 1
-        if (inp.down) dy += 1
-        if (dx === 0 && dy === 0) dx = p.facing
-        const len = Math.hypot(dx, dy) || 1
-        p.dashFrames = DASH_FRAMES
-        p.dashCool = DASH_COOLDOWN
-        p.dashDx = dx / len
-        p.dashDy = dy / len
-        p.airDashUsed = true
-        if (dx !== 0) p.facing = dx > 0 ? 1 : -1
-        addParticles(s, p.x + PLAYER_WIDTH / 2, p.y + PLAYER_HEIGHT / 2, 18, ch.accent, 2.4)
-        playSnd("dash")
-        if (!s.hasDashed) {
-          s.hasDashed = true
-          cb.grantAch("a3")
+      } else {
+        // AIR DASH — 8-directional, 1 charge per airborne sequence by default;
+        // Quickfeet+ perk raises the cap to 2 so the player can chain a second
+        // mid-air dash before landing/walljumping.
+        const maxAirDashes = cb.hasPerk("quickfeet_plus") ? 2 : 1
+        if (p.airDashesUsed < maxAirDashes) {
+          let dx = 0,
+            dy = 0
+          if (inp.left) dx -= 1
+          if (inp.right) dx += 1
+          if (inp.up) dy -= 1
+          if (inp.down) dy += 1
+          if (dx === 0 && dy === 0) dx = p.facing
+          const len = Math.hypot(dx, dy) || 1
+          p.dashFrames = DASH_FRAMES
+          p.dashCool = DASH_COOLDOWN
+          p.dashDx = dx / len
+          p.dashDy = dy / len
+          p.airDashesUsed += 1
+          if (dx !== 0) p.facing = dx > 0 ? 1 : -1
+          addParticles(s, p.x + PLAYER_WIDTH / 2, p.y + PLAYER_HEIGHT / 2, 18, ch.accent, 2.4)
+          playSnd("dash")
+          if (!s.hasDashed) {
+            s.hasDashed = true
+            cb.grantAch("a3")
+          }
+          p.aimGlideFrames = 0 // dashing cancels active glide
         }
-        p.aimGlideFrames = 0 // dashing cancels active glide
       }
     }
   }
@@ -449,7 +454,7 @@ export function stepGame(
     p.wallLatched = true
     p.vy = 0
     p.vx = 0
-    p.airDashUsed = false // wall latch refreshes EVERYTHING
+    p.airDashesUsed = 0 // wall latch refreshes EVERYTHING
     p.aimGlideUsed = false
     p.aimGlideFrames = 0
     p.jumpsLeft = 2
@@ -573,7 +578,7 @@ export function stepGame(
     p.jumpsLeft = 2
     p.coyote = COYOTE_FRAMES
     p.peakFall = 0
-    p.airDashUsed = false
+    p.airDashesUsed = 0
     p.aimGlideUsed = false
     p.aimGlideFrames = 0
     if (p.vy >= 0) {
@@ -1141,7 +1146,7 @@ export function makeInitialState(
       renderPrevX: x,
       renderPrevY: y,
       // Warframe-style state
-      airDashUsed: false,
+      airDashesUsed: 0,
       aimGlideUsed: false,
       aimGlideFrames: 0,
       wallLatched: false,

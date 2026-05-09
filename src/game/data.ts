@@ -1,5 +1,5 @@
 import { TILE_SIZE } from "@/game/constants"
-import type { Achievement, Mod, Palette, ProposedMod, Weapon, Zone } from "@/game/types/data"
+import type { Achievement, Mod, Palette, Perk, ProposedMod, Weapon, Zone } from "@/game/types/data"
 
 // `as const satisfies readonly Zone[]` is the trick: `as const` preserves the
 // literal types ("z1", "Sunrise Clearing", etc.) so we can derive ZoneId
@@ -223,3 +223,18 @@ export const WEAPONS = [
     cost: { basic: 25, essence: 6, crystal: 2 },
   },
 ] as const satisfies readonly Weapon[]
+
+// Level-up perks. One picked at hud.level 5, 10, 15 (no repeats).
+// Aim for LATERAL balance — perks should reshape playstyle, not strictly
+// stack power. ≥6 of 9 should change *how* the player plays. Strict power
+// perks (Phoenix-style revives, +max HP) are fine but should be the minority.
+export const PERKS = [
+  {
+    id: "quickfeet_plus",
+    name: "Quickfeet+",
+    desc: "+1 dash charge — chain a second air dash before landing",
+  },
+  // 8 more added in the next commit (user-authored content pass).
+] as const satisfies readonly Perk[]
+
+export type PerkId = (typeof PERKS)[number]["id"]

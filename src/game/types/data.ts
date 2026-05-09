@@ -52,3 +52,12 @@ export interface Weapon {
 // as a named type so call sites read more clearly.
 export type ColorHex = string
 export type Palette = readonly ColorHex[]
+
+// Level-up perks. The player picks one at hud.level 5, 10, 15. Unique per
+// run (no repeats). Effects are dispatched in physics.ts (or in App for
+// one-shot pick handlers like permanent +max HP) keyed off `id`.
+export interface Perk {
+  id: string
+  name: string
+  desc: string
+}

@@ -146,7 +146,10 @@ export interface PlayerState {
   renderPrevY: number
 
   // Warframe-style abilities. Booleans are gates; *Frames are countdowns.
-  airDashUsed: boolean
+  // airDashesUsed is a count (not a boolean) so perks like Quickfeet+ can
+  // raise the cap above 1 — we compare against a per-frame maxAirDashes
+  // computed from active perks.
+  airDashesUsed: number
   aimGlideUsed: boolean
   aimGlideFrames: number
   wallLatched: boolean
@@ -298,7 +301,7 @@ export type AppScene = "menu" | "about" | "loadmenu" | "creator" | "play"
 // ID unions are derived from the data tables in src/game/data.ts so adding
 // or removing an entry there propagates here automatically.
 import type { Cost, Materials } from "@/game/economy"
-import type { AchievementId, ZoneId } from "@/game/data"
+import type { AchievementId, PerkId, ZoneId } from "@/game/data"
 
 // physics.stepGame doesn't import React. App.tsx hands it these closures so
 // the loop can poke HUD-visible state when something achievement-worthy happens.
@@ -327,6 +330,9 @@ export interface PhysicsCallbacks {
   openDialog: (npc: NpcId) => void
   onDelveClear: () => void
   getMods: () => readonly string[]
+  // Perk lookup — read every tick like getMods. Effects keyed off PerkId in
+  // physics.ts (e.g. quickfeet_plus → maxAirDashes = 2).
+  hasPerk: (id: PerkId) => boolean
 }
 
 export type NpcId = "elder" | "merchant"

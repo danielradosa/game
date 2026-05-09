@@ -31,6 +31,12 @@ export interface HudState {
   // worldSeed when every portal is destroyed). Persisted across runs;
   // surfaced as a "♻ ×N" badge in the load menu.
   rebirths: number
+  // Picked level-up perks (PerkId values, kept loose like achievements).
+  // Up to 3 per save, in pick order. Effects dispatched via cb.hasPerk.
+  perks: string[]
+  // When set, blocks gameplay until the player picks a perk via
+  // <PerkPicker>. Cleared once a perk is appended to `perks`.
+  pendingPerkChoice: 5 | 10 | 15 | null
 }
 
 // What gets serialized into one save slot.
