@@ -469,14 +469,21 @@ export default function App() {
       date: new Date().toISOString(),
       where: s.current === "delve" ? "In the Delve" : "Surface",
       rebirths: hudRef.current.rebirths,
+      worldSeed: s.worldSeed ?? 0,
     }
     if (setSave(id, data)) {
-      const next = [meta, ...manifest]
-      persistManifest(next)
-      setManifest(next)
+      // Functional updater so we always merge against the latest manifest —
+      // autosave fires every 20s and could land between renders, leaving any
+      // closed-over `manifest` stale. Filter-by-id mirrors autosave so a
+      // re-save into the same slot replaces (not duplicates) the prior entry.
+      setManifest((m) => {
+        const next = [meta, ...m.filter((e) => e.id !== id)]
+        persistManifest(next)
+        return next
+      })
       pushNotif("Saved", "discovery")
     } else pushNotif("Save failed", "xp")
-  }, [manifest, pushNotif])
+  }, [pushNotif])
 
   // Autosave: writes to a reserved "autosave" slot every 20s while playing.
   // Replaces the existing autosave manifest entry in place so the load menu
@@ -512,6 +519,7 @@ export default function App() {
       date: new Date().toISOString(),
       where: s.current === "delve" ? "In the Delve" : "Surface",
       rebirths: hudRef.current.rebirths,
+      worldSeed: s.worldSeed ?? 0,
     }
     if (!setSave(id, data)) return
     setManifest((m) => {

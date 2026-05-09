@@ -89,6 +89,10 @@ export interface SaveMeta {
   // Mirror of HudState.rebirths so the load menu can render a badge
   // without having to read the full save body.
   rebirths: number
+  // Mirror of SaveData.worldSeed so the load menu can show a short
+  // hex snippet (last 6 chars) per save row, helping the player tell
+  // worlds apart at a glance. Legacy manifests default to 0 on read.
+  worldSeed: number
 }
 
 export type SaveManifest = SaveMeta[]

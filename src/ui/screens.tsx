@@ -175,12 +175,22 @@ interface LoadMenuProps {
   onBack: () => void
 }
 
+type SortKey = "date" | "level" | "rebirths"
+
 export function LoadMenu({ manifest, onLoad, onDelete, onBack }: LoadMenuProps) {
   const [page, setPage] = useState(0)
-  const [confirmId, setConfirmId] = useState<string | null>(null)
+  const [sortKey, setSortKey] = useState<SortKey>("date")
   const PER_PAGE = 5
-  const totalPages = Math.max(1, Math.ceil(manifest.length / PER_PAGE))
-  const items = manifest.slice(page * PER_PAGE, (page + 1) * PER_PAGE)
+  // Client-side sort on the manifest array. Always returns a new array so
+  // we don't mutate the prop.
+  const sorted = [...manifest].sort((a, b) => {
+    if (sortKey === "level") return b.level - a.level
+    if (sortKey === "rebirths") return (b.rebirths ?? 0) - (a.rebirths ?? 0)
+    // Default: date descending (newest first).
+    return Date.parse(b.date) - Date.parse(a.date)
+  })
+  const totalPages = Math.max(1, Math.ceil(sorted.length / PER_PAGE))
+  const items = sorted.slice(page * PER_PAGE, (page + 1) * PER_PAGE)
   const fmtDate = (iso: string): string => {
     try {
       return new Date(iso).toLocaleString(undefined, {
@@ -193,6 +203,13 @@ export function LoadMenu({ manifest, onLoad, onDelete, onBack }: LoadMenuProps) 
       return iso
     }
   }
+  // Last 6 hex chars of the world seed. Coerce to unsigned first so
+  // mulberry32's negative outputs stringify cleanly.
+  const fmtSeed = (seed: number | undefined): string =>
+    ((seed ?? 0) >>> 0)
+      .toString(16)
+      .padStart(6, "0")
+      .slice(-6)
   return (
     <div
       className="w-full min-h-screen flex items-center justify-center p-6"
@@ -213,6 +230,26 @@ export function LoadMenu({ manifest, onLoad, onDelete, onBack }: LoadMenuProps) 
         </div>
         {manifest.length === 0 && (
           <div className="text-stone-400 text-center py-12">No saves yet.</div>
+        )}
+        {manifest.length > 0 && (
+          <div className="flex items-center justify-end gap-2 mb-3 text-xs">
+            <label htmlFor="load-sort" className="text-stone-400 uppercase tracking-wider">
+              Sort
+            </label>
+            <select
+              id="load-sort"
+              value={sortKey}
+              onChange={(e) => {
+                setSortKey(e.target.value as SortKey)
+                setPage(0)
+              }}
+              className="bg-stone-800 text-stone-200 border border-stone-700 rounded px-2 py-1 outline-none focus:ring-1 ring-orange-300"
+            >
+              <option value="date">Date (newest)</option>
+              <option value="level">Level (high→low)</option>
+              <option value="rebirths">Rebirths (high→low)</option>
+            </select>
+          </div>
         )}
         <div className="space-y-2">
           {items.map((s) => (
@@ -239,47 +276,32 @@ export function LoadMenu({ manifest, onLoad, onDelete, onBack }: LoadMenuProps) 
                 <div className="text-xs text-stone-400">
                   {s.where} · {s.discovered}/{ZONES.length} zones · {s.materials} materials
                 </div>
-                <div className="text-xs text-stone-500 mt-0.5">{fmtDate(s.date)}</div>
+                <div className="text-xs text-stone-500 mt-0.5 flex items-center gap-2">
+                  <span>{fmtDate(s.date)}</span>
+                  <span className="font-mono text-stone-600">seed: {fmtSeed(s.worldSeed)}</span>
+                </div>
               </div>
               <div className="flex gap-2 ml-4">
-                {confirmId === s.id ? (
-                  <>
-                    <button
-                      onClick={() => {
-                        playSnd("click")
-                        onDelete(s.id)
-                        setConfirmId(null)
-                      }}
-                      className="bg-red-400 text-stone-900 px-3 py-1.5 rounded-md text-xs font-semibold"
-                    >
-                      Confirm
-                    </button>
-                    <button
-                      onClick={() => setConfirmId(null)}
-                      className="text-stone-400 hover:text-white text-xs"
-                    >
-                      Cancel
-                    </button>
-                  </>
-                ) : (
-                  <>
-                    <button
-                      onClick={() => {
-                        playSnd("click")
-                        onLoad(s.id)
-                      }}
-                      className="bg-orange-300 text-stone-900 px-4 py-1.5 rounded-md text-xs font-semibold"
-                    >
-                      Load
-                    </button>
-                    <button
-                      onClick={() => setConfirmId(s.id)}
-                      className="text-stone-400 hover:text-red-300 text-xs"
-                    >
-                      Delete
-                    </button>
-                  </>
-                )}
+                <button
+                  onClick={() => {
+                    playSnd("click")
+                    onLoad(s.id)
+                  }}
+                  className="bg-orange-300 text-stone-900 px-4 py-1.5 rounded-md text-xs font-semibold"
+                >
+                  Load
+                </button>
+                <button
+                  onClick={() => {
+                    if (window.confirm(`Delete save "${s.name}"? This cannot be undone.`)) {
+                      playSnd("click")
+                      onDelete(s.id)
+                    }
+                  }}
+                  className="text-stone-400 hover:text-red-300 text-xs"
+                >
+                  Delete
+                </button>
               </div>
             </div>
           ))}
