@@ -40,7 +40,7 @@ import {
   DialogPanel,
 } from "@/ui/screens"
 import { PerkPicker } from "@/ui/PerkPicker"
-import { SettingsMenu } from "@/ui/SettingsMenu"
+import { SettingsMenu, formatKey } from "@/ui/SettingsMenu"
 import type {
   AppNotification,
   AppScene,
@@ -765,24 +765,40 @@ export default function App() {
       const tag = el.tagName
       return tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || el.isContentEditable
     }
+    // Compare an event key against a configured binding. Single-character
+    // keys are case-folded so Shift+letter doesn't escape the binding (e.g.
+    // a binding of "e" still matches when the user presses "E"). Multi-char
+    // keys ("ArrowLeft", "Shift", " ") are compared verbatim — the literal
+    // " " for Space stays a string of length 1 BUT lowercasing a space is a
+    // no-op so it falls through correctly either way.
+    const matches = (k: string, bound: string): boolean => {
+      if (k.length === 1 && bound.length === 1) {
+        return k.toLowerCase() === bound.toLowerCase()
+      }
+      return k === bound
+    }
     const down = (e: KeyboardEvent): void => {
       if (isEditable(e.target)) return
-      const k = e.key.toLowerCase()
-      if (["arrowleft", "a"].includes(k)) inp.left = true
-      if (["arrowright", "d"].includes(k)) inp.right = true
-      if (["arrowup", "w"].includes(k)) inp.up = true
-      if (["arrowdown", "s"].includes(k)) inp.down = true
-      if (["arrowup", "w", " ", "z"].includes(k)) {
+      const k = e.key
+      const b = settingsRef.current.keys
+      // Rebindable game inputs — read from the live settings ref each press
+      // so a Settings save takes effect immediately without rewiring.
+      if (matches(k, b.moveLeft)) inp.left = true
+      if (matches(k, b.moveRight)) inp.right = true
+      if (matches(k, b.moveUp)) inp.up = true
+      if (matches(k, b.moveDown)) inp.down = true
+      if (matches(k, b.jump)) {
         if (!inp.jump) inp.jumpEdge = true
         inp.jump = true
       }
-      if (["shift", "x", "k"].includes(k)) {
+      if (matches(k, b.dash)) {
         if (!inp.dash) inp.dashEdge = true
         inp.dash = true
       }
-      if (k === "e" || k === "enter") {
-        // E acts as a toggle when a dialog is open: pressing again closes
-        // it instead of stacking another open via the next NPC overlap.
+      if (matches(k, b.interact)) {
+        // Interact acts as a toggle when a dialog is open: pressing again
+        // closes it instead of stacking another open via the next NPC
+        // overlap.
         if (dialogRef.current !== null) {
           setDialogNpc(null)
           return
@@ -793,15 +809,20 @@ export default function App() {
       // Consumable hotkeys — only fire if the user has at least one. The
       // physics layer rechecks via cb.useHeal/useStorm, but we gate here too
       // for snappy "no feedback when empty" behavior (no edge stamped).
-      if (k === "1" && hudRef.current.consumables.heal > 0) inp.useHealEdge = true
-      if (k === "2" && hudRef.current.consumables.storm > 0) inp.useStormEdge = true
-      if (k === "i" || k === "tab") {
+      if (matches(k, b.heal) && hudRef.current.consumables.heal > 0) inp.useHealEdge = true
+      if (matches(k, b.storm) && hudRef.current.consumables.storm > 0) inp.useStormEdge = true
+
+      // System keys — NOT user-rebindable. These stay hardcoded since they
+      // operate on overlays/scene flow, not the player. Compared lowercased
+      // against the original key string so Shift+letter still hits.
+      const lk = k.length === 1 ? k.toLowerCase() : k
+      if (lk === "i" || k === "Tab") {
         e.preventDefault()
         setShowInv((v) => !v)
       }
       // Esc cascades through open overlays before exiting to menu.
       // Order: dialog → inventory → pause overlay → main menu.
-      if (k === "escape") {
+      if (k === "Escape") {
         if (dialogRef.current !== null) {
           setDialogNpc(null)
         } else if (showInvRef.current) {
@@ -813,20 +834,31 @@ export default function App() {
           setScene("menu")
         }
       }
-      if (k === "p") setPaused((v) => !v)
-      if (k === "m") setMuted((v) => !v)
-      if (["arrowup", "arrowdown", "arrowleft", "arrowright", " "].includes(k)) e.preventDefault()
+      if (lk === "p") setPaused((v) => !v)
+      if (lk === "m") setMuted((v) => !v)
+      // Block default for arrow keys + space when they're the configured
+      // movement / jump binding so the page doesn't scroll under the canvas.
+      if (
+        k === "ArrowUp" ||
+        k === "ArrowDown" ||
+        k === "ArrowLeft" ||
+        k === "ArrowRight" ||
+        k === " "
+      ) {
+        e.preventDefault()
+      }
     }
     const up = (e: KeyboardEvent): void => {
       if (isEditable(e.target)) return
-      const k = e.key.toLowerCase()
-      if (["arrowleft", "a"].includes(k)) inp.left = false
-      if (["arrowright", "d"].includes(k)) inp.right = false
-      if (["arrowup", "w"].includes(k)) inp.up = false
-      if (["arrowdown", "s"].includes(k)) inp.down = false
-      if (["arrowup", "w", " ", "z"].includes(k)) inp.jump = false
-      if (["shift", "x", "k"].includes(k)) inp.dash = false
-      if (k === "e" || k === "enter") inp.interact = false
+      const k = e.key
+      const b = settingsRef.current.keys
+      if (matches(k, b.moveLeft)) inp.left = false
+      if (matches(k, b.moveRight)) inp.right = false
+      if (matches(k, b.moveUp)) inp.up = false
+      if (matches(k, b.moveDown)) inp.down = false
+      if (matches(k, b.jump)) inp.jump = false
+      if (matches(k, b.dash)) inp.dash = false
+      if (matches(k, b.interact)) inp.interact = false
     }
     window.addEventListener("keydown", down)
     window.addEventListener("keyup", up)
@@ -1138,7 +1170,10 @@ export default function App() {
         </div>
         <div className="absolute bottom-3 left-3 pointer-events-none text-white/70 text-xs space-y-0.5 bg-black/30 backdrop-blur rounded-lg px-3 py-2">
           <div>
-            <b>Move</b> A/D · <b>Jump</b> Space · <b>Dash</b> Shift (8-dir) · <b>Use</b> E
+            <b>Move</b> {formatKey(settings.keys.moveLeft)}/{formatKey(settings.keys.moveRight)} ·{" "}
+            <b>Jump</b> {formatKey(settings.keys.jump)} · <b>Dash</b>{" "}
+            {formatKey(settings.keys.dash)} (8-dir) · <b>Use</b>{" "}
+            {formatKey(settings.keys.interact)}
           </div>
           <div className="text-stone-400">Tab — inventory · Esc — pause · M — mute</div>
         </div>

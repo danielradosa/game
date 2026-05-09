@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react"
 import { playSnd } from "@/game/audio"
-import type { KeyBindings, Settings } from "@/game/settings"
+import { DEFAULT_KEYS, type KeyBindings, type Settings } from "@/game/settings"
 
 interface SettingsMenuProps {
   initial: Settings
@@ -8,25 +8,29 @@ interface SettingsMenuProps {
   onBack: () => void
 }
 
-// Action label shown next to each key row in the Controls preview. Keyed by
+// Action label shown next to each key row in the Controls panel. Keyed by
 // KeyBindings field. Order is the array order in CONTROL_ROWS, not object
 // declaration — we want movement first, then jump/dash, then utility.
 const CONTROL_ROWS: ReadonlyArray<{ key: keyof KeyBindings; label: string }> = [
   { key: "moveLeft", label: "Move Left" },
   { key: "moveRight", label: "Move Right" },
   { key: "moveUp", label: "Move Up" },
-  { key: "moveDown", label: "Move Down" },
+  { key: "moveDown", label: "Move Down / Drop" },
   { key: "jump", label: "Jump" },
-  { key: "dash", label: "Dash" },
+  { key: "dash", label: "Dash / Roll" },
   { key: "interact", label: "Interact" },
   { key: "heal", label: "Heal Potion" },
   { key: "storm", label: "Storm Vial" },
 ]
 
-// Render a key value for display. Spaces and modifiers print better as their
-// human-readable names than their raw e.key strings.
-function formatKey(k: string): string {
+// Render a key value for display. Spaces, arrows, and modifiers print better
+// as their human-readable names than their raw e.key strings.
+export function formatKey(k: string): string {
   if (k === " ") return "Space"
+  if (k === "ArrowLeft") return "←"
+  if (k === "ArrowRight") return "→"
+  if (k === "ArrowUp") return "↑"
+  if (k === "ArrowDown") return "↓"
   if (k.length === 1) return k.toUpperCase()
   return k
 }
@@ -36,6 +40,8 @@ export function SettingsMenu({ initial, onApply, onBack }: SettingsMenuProps) {
   const [isFullscreen, setIsFullscreen] = useState<boolean>(
     typeof document !== "undefined" && document.fullscreenElement !== null,
   )
+  // Which action (if any) is currently waiting on a keypress. null = idle.
+  const [listening, setListening] = useState<keyof KeyBindings | null>(null)
 
   // Sync mute state when an external source (e.g. M-key handler in App)
   // toggles it while the menu is open. Without this, opening the menu
@@ -53,6 +59,48 @@ export function SettingsMenu({ initial, onApply, onBack }: SettingsMenuProps) {
     document.addEventListener("fullscreenchange", handler)
     return () => document.removeEventListener("fullscreenchange", handler)
   }, [])
+
+  // Listen-mode handler — only mounted while a row is awaiting a keypress.
+  // Captures the next keydown (in capture phase, before App.tsx's gameplay
+  // handler) and writes it back into settings.keys. Escape cancels without
+  // binding so users always have an out.
+  useEffect(() => {
+    if (listening === null) return
+    const onKey = (e: KeyboardEvent): void => {
+      e.preventDefault()
+      e.stopPropagation()
+      const k = e.key
+      if (k === "Escape") {
+        setListening(null)
+        return
+      }
+      // Conflict detection — find any OTHER action already bound to this key.
+      // If found, prompt for swap; on accept, swap so neither slot is empty.
+      const conflictAction = (
+        Object.entries(settings.keys) as [keyof KeyBindings, string][]
+      ).find(([action, key]) => action !== listening && key === k)
+      if (conflictAction) {
+        const [otherAction] = conflictAction
+        const otherLabel = CONTROL_ROWS.find((r) => r.key === otherAction)?.label ?? otherAction
+        const ok = window.confirm(
+          `"${formatKey(k)}" is already bound to "${otherLabel}". Swap?`,
+        )
+        if (!ok) {
+          setListening(null)
+          return
+        }
+        setSettings((s) => {
+          const oldKey = s.keys[listening]
+          return { ...s, keys: { ...s.keys, [listening]: k, [otherAction]: oldKey } }
+        })
+      } else {
+        setSettings((s) => ({ ...s, keys: { ...s.keys, [listening]: k } }))
+      }
+      setListening(null)
+    }
+    window.addEventListener("keydown", onKey, { capture: true })
+    return () => window.removeEventListener("keydown", onKey, { capture: true })
+  }, [listening, settings.keys])
 
   const toggleFullscreen = (): void => {
     playSnd("click")
@@ -79,6 +127,11 @@ export function SettingsMenu({ initial, onApply, onBack }: SettingsMenuProps) {
     playSnd("click")
     onApply(settings)
     onBack()
+  }
+
+  const resetKeys = (): void => {
+    playSnd("click")
+    setSettings((s) => ({ ...s, keys: { ...DEFAULT_KEYS } }))
   }
 
   return (
@@ -149,21 +202,52 @@ export function SettingsMenu({ initial, onApply, onBack }: SettingsMenuProps) {
           </p>
         </div>
 
-        {/* Controls panel — read-only preview. Rebinding lands in next update. */}
+        {/* Controls panel — interactive rebinding. */}
         <div className="bg-stone-800/50 p-5 rounded space-y-3">
           <div className="flex items-baseline justify-between">
             <h3 className="text-lg font-semibold text-orange-200">Controls</h3>
-            <span className="text-xs text-stone-400 italic">rebinding coming in next update</span>
+            <span className="text-xs text-stone-400 italic">
+              Click Rebind, then press a key. Esc cancels.
+            </span>
           </div>
-          <div className="grid grid-cols-2 gap-x-6 gap-y-1.5 text-sm">
-            {CONTROL_ROWS.map(({ key, label }) => (
-              <div key={key} className="flex items-center justify-between">
-                <span className="text-stone-300">{label}</span>
-                <span className="font-mono text-orange-200 bg-stone-900/60 px-2 py-0.5 rounded">
-                  {formatKey(settings.keys[key])}
-                </span>
-              </div>
-            ))}
+          <div className="space-y-1.5 text-sm">
+            {CONTROL_ROWS.map(({ key, label }) => {
+              const isListening = listening === key
+              return (
+                <div
+                  key={key}
+                  className={`flex items-center justify-between gap-3 px-2 py-1 rounded ${
+                    isListening ? "ring-2 ring-orange-300 bg-stone-900/40" : ""
+                  }`}
+                >
+                  <span className="text-stone-300 flex-1">{label}</span>
+                  <span className="font-mono text-orange-200 bg-stone-900/60 px-2 py-0.5 rounded min-w-[3rem] text-center">
+                    {isListening ? "…" : formatKey(settings.keys[key])}
+                  </span>
+                  <button
+                    onClick={() => {
+                      playSnd("click")
+                      setListening(isListening ? null : key)
+                    }}
+                    className={`px-3 py-0.5 rounded text-xs ${
+                      isListening
+                        ? "bg-orange-300 text-stone-900"
+                        : "bg-stone-700 hover:bg-stone-600 text-stone-100"
+                    }`}
+                  >
+                    {isListening ? "Press a key…" : "Rebind"}
+                  </button>
+                </div>
+              )
+            })}
+          </div>
+          <div className="flex justify-end pt-1">
+            <button
+              onClick={resetKeys}
+              className="text-xs text-stone-400 hover:text-orange-200 underline"
+            >
+              Reset to Defaults
+            </button>
           </div>
         </div>
 
