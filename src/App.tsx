@@ -36,6 +36,7 @@ import { PLAYER_MAX_HP } from "@/game/constants"
 import { draw, drawPaused } from "@/game/render"
 import { playSnd, setMuted as setMutedAudio, setVolume as setVolumeAudio } from "@/game/audio"
 import { fetchManifest, persistManifest, getSave, setSave, deleteSave } from "@/game/save"
+import { SAVE_VERSION } from "@/shared/save-version"
 import { loadSettings, saveSettings, type Settings } from "@/game/settings"
 import {
   MainMenu,
@@ -510,6 +511,7 @@ export default function App() {
     if (!s) return
     const id = "s_" + Date.now() + "_" + Math.random().toString(36).slice(2, 6)
     const data = {
+      version: SAVE_VERSION,
       character: charRef.current,
       hud: hudRef.current,
       pos: { x: s.p.x, y: s.p.y, scene: s.current },
@@ -562,6 +564,7 @@ export default function App() {
     if (!s) return
     const id = "autosave"
     const data = {
+      version: SAVE_VERSION,
       character: charRef.current,
       hud: hudRef.current,
       pos: { x: s.p.x, y: s.p.y, scene: s.current },

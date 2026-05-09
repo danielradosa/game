@@ -1,14 +1,9 @@
-import type { SaveData, SaveManifest } from "@/game/types/save"
+import { migrate } from "@/game/save-migrate"
+import { SAVE_VERSION } from "@/shared/save-version"
+import type { SaveData, SaveManifest } from "@/shared/save"
 
 const SAVE_PREFIX = "drift:save:"
 const MANIFEST_KEY = "drift:save_manifest"
-
-// Note on the type contract: localStorage hands us untrusted JSON. We're
-// asserting the parsed shape with `as` here rather than runtime-validating
-// it — if a save was hand-edited or written by an older version with a
-// different schema, the load may produce a malformed object. Acceptable
-// for a personal game; for shipping software, plug in a validator (zod,
-// valibot) in the parse path below.
 
 export function fetchManifest(): SaveManifest {
   try {
@@ -31,7 +26,8 @@ export function persistManifest(m: SaveManifest): boolean {
 export function getSave(id: string): SaveData | null {
   try {
     const raw = localStorage.getItem(SAVE_PREFIX + id)
-    return raw ? (JSON.parse(raw) as SaveData) : null
+    if (!raw) return null
+    return migrate(JSON.parse(raw))
   } catch {
     return null
   }
@@ -39,7 +35,8 @@ export function getSave(id: string): SaveData | null {
 
 export function setSave(id: string, data: SaveData): boolean {
   try {
-    localStorage.setItem(SAVE_PREFIX + id, JSON.stringify(data))
+    const stamped: SaveData = { ...data, version: SAVE_VERSION }
+    localStorage.setItem(SAVE_PREFIX + id, JSON.stringify(stamped))
     return true
   } catch {
     return false
