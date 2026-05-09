@@ -14,12 +14,18 @@ import { Errors } from "../errors.js"
 
 function setSessionCookie(reply: FastifyReply, token: string): void {
   const env = reply.server.env
-  // Build options conditionally so we don't pass `domain: undefined` —
-  // exactOptionalPropertyTypes rejects that. When COOKIE_DOMAIN is unset,
-  // omit the property entirely; the cookie defaults to the request host.
+  // SameSite policy:
+  //   - prod (COOKIE_SECURE=true): "none" so the cookie travels on
+  //     cross-site fetch/XHR from the frontend origin to the API origin.
+  //     Required because up.railway.app is on the Public Suffix List —
+  //     each *.up.railway.app subdomain is a separate site, so SameSite=Lax
+  //     would block the cookie on the frontend's fetch() to the API.
+  //   - dev (COOKIE_SECURE=false): "lax" — same-origin in dev so we don't
+  //     need None, and browsers reject SameSite=None without Secure.
+  const sameSite = env.COOKIE_SECURE ? ("none" as const) : ("lax" as const)
   const opts = {
     httpOnly: true,
-    sameSite: "lax" as const,
+    sameSite,
     secure: env.COOKIE_SECURE,
     path: "/",
     maxAge: env.SESSION_TTL_DAYS * 24 * 60 * 60,
