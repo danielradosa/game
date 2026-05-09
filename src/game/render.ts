@@ -10,10 +10,16 @@ import {
 } from "@/game/constants"
 import { cellKey } from "@/game/physics"
 import { ASSET_SIZES, SPRITES, isReady, tryDrawSprite } from "@/game/sprites"
-import type { Character, GameState, Theme, TileChar } from "@/game/types/physics"
-import type { SpriteName } from "@/game/types/sprites"
+import type { Character, GameState, PlayerState, Theme, TileChar } from "@/game/types/physics"
 
 type Ctx = CanvasRenderingContext2D
+
+// Normalized slash progress in [0, 1]: 0 = sheathed, →1 = fully through the
+// swing animation. Centralized so drawPlayer (sprite + procedural paths) and
+// drawSlash share one source of truth for the swing timeline.
+function slashProgress(p: PlayerState): number {
+  return p.slashFrames > 0 ? 1 - p.slashFrames / SLASH_FRAMES : 0
+}
 
 export function draw(ctx: Ctx, s: GameState, ch: Character, alpha: number): void {
   // Reset to a transform that maps world units (VIEWPORT_WIDTH × VIEWPORT_HEIGHT)
@@ -767,56 +773,164 @@ function drawLostCache(ctx: Ctx, s: GameState): void {
   ctx.globalAlpha = 1
 }
 
-function drawSlash(ctx: Ctx, s: GameState, ch: Character): void {
+// Per-weapon blade tuning. Index by s.activeWeaponLevel (0|1|2).
+// Picked to give a clear visual delta tier-to-tier so a forge purchase reads
+// instantly: blade gets longer, brighter, and (Honed) gains a cyan rim glow.
+const SWORD_TIERS = [
+  { len: 18, blade: "#888888", highlight: null, cross: "#b89030", glow: null },
+  { len: 22, blade: "#c0c0d0", highlight: "#e8eef0", cross: "#c8c8d0", glow: null },
+  {
+    len: 26,
+    blade: "#e0eaf0",
+    highlight: "#ffffff",
+    cross: "#e0c060",
+    glow: "rgba(160,220,255,0.6)",
+  },
+] as const
+
+const HILT_GRIP = "#5a3a20"
+const SCABBARD = "#3a2818"
+
+// drawSword is called from inside drawPlayer's already-translated /
+// already-mirrored coordinate space. (anchorX, anchorY) is the hip in
+// player-local pixels. Caller has applied ctx.scale(facing, 1), so +x is
+// "forward" regardless of the actual screen direction — we don't need
+// `facing` here.
+//
+//   slashProgress === 0 → sheathed: scabbard + hilt sit on the right hip.
+//   slashProgress  > 0 → drawn: blade swings from down-back (+30°) to
+//                         forward-up (-45°) on a quadratic-ease curve so the
+//                         strike has weight (slow start → snap → recovery).
+function drawSword(
+  ctx: Ctx,
+  anchorX: number,
+  anchorY: number,
+  weaponLevel: number,
+  slashProgress: number,
+): void {
+  const tierIdx = Math.max(0, Math.min(2, weaponLevel)) as 0 | 1 | 2
+  const tier = SWORD_TIERS[tierIdx]
+  if (slashProgress <= 0) {
+    // Sheathed: scabbard hangs from the right hip; hilt + crossguard +
+    // pommel poke up just above it. All offsets are in player-local px.
+    ctx.save()
+    ctx.translate(anchorX, anchorY)
+    // Scabbard (rectangle, slightly tilted by drawing it as a parallelogram).
+    ctx.fillStyle = SCABBARD
+    ctx.fillRect(-1, 0, 4, 11)
+    ctx.fillStyle = "rgba(0,0,0,0.35)"
+    ctx.fillRect(2, 0, 1, 11)
+    // Hilt grip
+    ctx.fillStyle = HILT_GRIP
+    ctx.fillRect(0, -5, 2, 5)
+    // Crossguard
+    ctx.fillStyle = tier.cross
+    ctx.fillRect(-2, -6, 6, 1.5)
+    // Pommel
+    ctx.fillRect(0, -7, 2, 1.5)
+    ctx.restore()
+    return
+  }
+
+  // Quadratic ease — slashProgress * (2 - slashProgress). Front-loaded
+  // velocity: fast early, settles late. Reads as a snap on the strike.
+  const eased = slashProgress * (2 - slashProgress)
+  const startAng = (30 * Math.PI) / 180 // +30° (down-back)
+  const endAng = (-45 * Math.PI) / 180 // -45° (forward-up)
+  const ang = startAng + (endAng - startAng) * eased
+  const len = tier.len
+  // Hand grip extends ~5px out from the hip toward the blade direction; the
+  // blade then continues for `len` more pixels.
+  const gripLen = 5
+
+  ctx.save()
+  ctx.translate(anchorX, anchorY)
+  ctx.rotate(ang)
+  // Grip
+  ctx.fillStyle = HILT_GRIP
+  ctx.fillRect(0, -1.5, gripLen, 3)
+  // Crossguard — perpendicular to blade
+  ctx.fillStyle = tier.cross
+  ctx.fillRect(gripLen - 1, -4, 2, 8)
+  // Pommel
+  ctx.fillRect(-2, -2, 2, 4)
+  // Honed: cyan rim glow during the swing. Drawn before the blade fill
+  // so the blade sits on top crisply. Reset shadow afterward to avoid
+  // bleeding into other primitives.
+  if (tier.glow !== null) {
+    ctx.shadowBlur = 10
+    ctx.shadowColor = tier.glow
+  }
+  // Blade body
+  ctx.fillStyle = tier.blade
+  ctx.fillRect(gripLen, -2, len, 4)
+  // Blade tip (triangular end)
+  ctx.beginPath()
+  ctx.moveTo(gripLen + len, -2)
+  ctx.lineTo(gripLen + len + 3, 0)
+  ctx.lineTo(gripLen + len, 2)
+  ctx.closePath()
+  ctx.fill()
+  if (tier.glow !== null) {
+    ctx.shadowBlur = 0
+    ctx.shadowColor = "transparent"
+  }
+  // Center highlight stripe — Forged + Honed only
+  if (tier.highlight !== null) {
+    ctx.fillStyle = tier.highlight
+    ctx.fillRect(gripLen, -0.5, len, 1)
+  }
+  ctx.restore()
+}
+
+// Mod auras during slash. The sword itself is the slash visual (drawn
+// inside drawPlayer); this pass adds elemental garnish on top, centered on
+// the moving blade midpoint so the auras track the swing instead of
+// floating at a static arc anchor.
+function drawSlash(ctx: Ctx, s: GameState, _ch: Character): void {
   const p = s.p
   if (p.slashFrames <= 0) return
   const mods = s.activeMods
   const hasSearing = mods.includes("searing")
   const hasStormbound = mods.includes("stormbound")
-  const t = 1 - p.slashFrames / SLASH_FRAMES // 0 → 1 progress
-  const cx = p.x + PLAYER_WIDTH / 2 + p.facing * 14
-  const cy = p.y + PLAYER_HEIGHT / 2
-  // Stormbound widens the visual sweep to match the +50% reach buff.
-  const radius = (18 + t * 14) * (hasStormbound ? 1.5 : 1)
-  const sweep = Math.PI * 0.9
-  const start = p.facing > 0 ? -sweep / 2 : Math.PI - sweep / 2
+  if (!hasSearing && !hasStormbound) return
 
-  // Try the per-weapon sprite first. Sprite is drawn mirrored along player
-  // facing. If absent, fall through to the procedural arc.
-  const weaponSpriteName: SpriteName =
-    s.activeWeaponLevel >= 2
-      ? "weapon_honed"
-      : s.activeWeaponLevel === 1
-        ? "weapon_forged"
-        : "weapon_worn"
-  ctx.save()
-  ctx.translate(cx, cy)
-  ctx.scale(p.facing, 1)
-  ctx.globalAlpha = 1 - t
-  const weaponDrawn = tryDrawSprite(ctx, weaponSpriteName, 0, 0)
-  ctx.restore()
+  const t = slashProgress(p) // 0 → 1 progress
+  // Compute the blade midpoint in WORLD coords using the same eased angle
+  // as drawSword. Hip anchor is the player's right hip; mirror x by facing.
+  const eased = t * (2 - t)
+  const startAng = (30 * Math.PI) / 180
+  const endAng = (-45 * Math.PI) / 180
+  const ang = startAng + (endAng - startAng) * eased
+  const tierIdx = Math.max(0, Math.min(2, s.activeWeaponLevel)) as 0 | 1 | 2
+  const tier = SWORD_TIERS[tierIdx]
+  const bladeLen = tier.len
+  // Match drawPlayer's hip anchor in world space (see drawPlayer below).
+  const bodyW = PLAYER_WIDTH * (2 - p.squash)
+  const bodyH = PLAYER_HEIGHT * p.squash * 1.3
+  const hipLocalX = bodyW / 2 - 2
+  const hipLocalY = -bodyH * 0.5
+  const hipWorldX = p.x + PLAYER_WIDTH / 2 + p.facing * hipLocalX
+  const hipWorldY = p.y + PLAYER_HEIGHT + hipLocalY
+  // Blade midpoint = hip + grip + half-blade along the rotated forward vector.
+  const gripLen = 5
+  const midDist = gripLen + bladeLen / 2
+  // In player-local space, the rotation rotates +x. To convert to world,
+  // multiply x-component by facing (since drawPlayer applies scale(facing,1)).
+  const localDX = Math.cos(ang) * midDist
+  const localDY = Math.sin(ang) * midDist
+  const cx = hipWorldX + p.facing * localDX
+  const cy = hipWorldY + localDY
+  // Approximate radius around the blade midpoint for the procedural overlays.
+  const radius = bladeLen * 0.55 * (hasStormbound ? 1.4 : 1)
 
-  if (!weaponDrawn) {
-    ctx.save()
-    const arcColor = hasStormbound ? "#80c0ff" : hasSearing ? "#ffae40" : ch.accent
-    ctx.globalAlpha = 1 - t
-    ctx.strokeStyle = arcColor
-    ctx.lineWidth = 4
-    ctx.beginPath()
-    ctx.arc(cx, cy, radius, start, start + sweep)
-    ctx.stroke()
-    ctx.globalAlpha = (1 - t) * 0.4
-    ctx.lineWidth = 9
-    ctx.stroke()
-    ctx.restore()
-  }
-
-  // Searing overlay — sprite first, then procedural flame motes.
+  // Searing overlay — sprite first, then procedural flame motes around the
+  // blade midpoint.
   if (hasSearing && !tryDrawSprite(ctx, "aura_searing", cx, cy)) {
     ctx.save()
     const sampleCount = 6
     for (let i = 0; i < sampleCount; i++) {
-      const a = start + (sweep * i) / (sampleCount - 1)
+      const a = (Math.PI * 2 * i) / sampleCount
       const ax = cx + Math.cos(a) * radius
       const ay = cy + Math.sin(a) * radius
       const jitter = 4
@@ -830,14 +944,15 @@ function drawSlash(ctx: Ctx, s: GameState, ch: Character): void {
     }
     ctx.restore()
   }
-  // Stormbound overlay — sprite first, then procedural lightning.
+  // Stormbound overlay — sprite first, then procedural lightning bolts that
+  // forks outward from the blade midpoint.
   if (hasStormbound && !tryDrawSprite(ctx, "aura_stormbound", cx, cy)) {
     ctx.save()
     ctx.globalAlpha = (1 - t) * 0.7
     ctx.strokeStyle = "#a0e0ff"
     ctx.lineWidth = 1.5
     for (let i = 0; i < 3; i++) {
-      const a = start + (sweep * (i + 0.5)) / 3
+      const a = (Math.PI * 2 * (i + 0.5)) / 3
       const ex = cx + Math.cos(a) * radius
       const ey = cy + Math.sin(a) * radius
       ctx.beginPath()
@@ -890,6 +1005,20 @@ function drawPlayer(ctx: Ctx, s: GameState, ch: Character): void {
     ctx.scale(p.facing, 1)
     const spec = ASSET_SIZES.player
     ctx.drawImage(SPRITES.player, -spec.w / 2, -spec.h, spec.w, spec.h)
+    // Sword sits on top of the sprite so the slash visual remains data-driven
+    // even when a custom player sprite is loaded.
+    if (s.activeHasSword) {
+      // Approximate hip position relative to ASSET_SIZES.player (drawn from
+      // bottom-center). spec.h/2 ≈ belt height, spec.w/2 - 2 = right hip.
+      // Sprite-path anchor uses ASSET_SIZES dimensions (no squash). When a
+      // player sprite is wired, the sword's hip placement will be static
+      // rather than tracking the body's squash anim — by design, since the
+      // sprite frame itself shouldn't be re-deformed by squash. Procedural
+      // path below uses bodyW/bodyH so the sword bobs with the body.
+      const hipX = spec.w / 2 - 2
+      const hipY = -spec.h * 0.5
+      drawSword(ctx, hipX, hipY, s.activeWeaponLevel, slashProgress(p))
+    }
     ctx.restore()
     return
   }
@@ -941,6 +1070,16 @@ function drawPlayer(ctx: Ctx, s: GameState, ch: Character): void {
   ctx.fillStyle = ch.skin
   ctx.fillRect(-bodyW / 2 - 4, -bodyH * 0.42 + armSwing, 5, 4)
   ctx.fillRect(bodyW / 2 - 1, -bodyH * 0.42 - armSwing, 5, 4)
+  // Sword on the right hip — sheathed at rest, drawn forward during slash.
+  // Drawn after legs+torso+arms but before head/hair so it never occludes
+  // the face. Hip anchor sits just past the right edge of the torso, at
+  // belt height. drawPlayer is already inside scale(facing, 1), so +x in
+  // local coords maps to "forward" regardless of which way the player faces.
+  if (s.activeHasSword) {
+    const hipX = bodyW / 2 - 2
+    const hipY = -bodyH * 0.5
+    drawSword(ctx, hipX, hipY, s.activeWeaponLevel, slashProgress(p))
+  }
   // Neck — small skin column between the torso top (~-0.78·bodyH) and the
   // head's lifted bottom (~-1.07·bodyH). Without this the head rests directly
   // on the shoulder line and reads as a balaclava.

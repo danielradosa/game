@@ -169,6 +169,7 @@ export function stepGame(
   // Snapshot for the renderer (which only reads s, not cb).
   s.activeMods = mods
   s.activeWeaponLevel = cb.getWeaponLevel()
+  s.activeHasSword = cb.hasSword()
 
   // Snapshot pre-tick state so the renderer can lerp between this and the
   // post-tick state. Teleports below re-snap to avoid a smear across the cut.
@@ -794,10 +795,7 @@ export function stepGame(
             : eStats.killDrops
           cb.addMaterials(drops)
           // Scholar perk — kills grant +50% XP.
-          cb.grantXP(
-            Math.round(eStats.killXp * (cb.hasPerk("scholar") ? 1.5 : 1)),
-            "stormed",
-          )
+          cb.grantXP(Math.round(eStats.killXp * (cb.hasPerk("scholar") ? 1.5 : 1)), "stormed")
           if (
             s.current === "delve" &&
             !s.delveCleared &&
@@ -1065,9 +1063,7 @@ export function stepGame(
       const baseIframes = mods.includes("resilience")
         ? Math.floor(DAMAGE_IFRAMES * 1.5)
         : DAMAGE_IFRAMES
-      p.damageIframes = cb.hasPerk("ironclad")
-        ? Math.floor(baseIframes * 1.5)
-        : baseIframes
+      p.damageIframes = cb.hasPerk("ironclad") ? Math.floor(baseIframes * 1.5) : baseIframes
       p.vx = (pCx > eCx ? 1 : -1) * DAMAGE_KNOCKBACK_VX
       p.vy = DAMAGE_KNOCKBACK_VY
       p.wallLatched = false
@@ -1110,9 +1106,7 @@ export function stepGame(
         const baseIframes = mods.includes("resilience")
           ? Math.floor(DAMAGE_IFRAMES * 1.5)
           : DAMAGE_IFRAMES
-        p.damageIframes = cb.hasPerk("ironclad")
-          ? Math.floor(baseIframes * 1.5)
-          : baseIframes
+        p.damageIframes = cb.hasPerk("ironclad") ? Math.floor(baseIframes * 1.5) : baseIframes
         p.vx = (pCx > pr.x ? 1 : -1) * DAMAGE_KNOCKBACK_VX * 0.7
         p.vy = DAMAGE_KNOCKBACK_VY * 0.7
         s.cam.shake = Math.max(s.cam.shake, 5)
@@ -1228,6 +1222,7 @@ export function makeInitialState(
     enemies: current === "delve" ? spawnEnemiesFrom(dl.enemySpawns, defeated) : [],
     activeMods: [],
     activeWeaponLevel: 0,
+    activeHasSword: false,
     defeatedEnemies: new Set<number>(defeated),
     delveCleared,
     portals,
