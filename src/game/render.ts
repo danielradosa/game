@@ -699,9 +699,16 @@ function drawEnemies(ctx: Ctx, s: GameState): void {
     // Suppress while burrower is underground (no body to display under).
     ctx.globalAlpha = 1
     if (e.hp < e.maxHp && !(e.type === "burrower" && e.diveTime > 0)) {
+      // Fixed-width bar split into maxHp segments. Higher-HP enemies show
+      // thinner pips, but the bar itself stays the same visual size — so a
+      // 30-HP slammer doesn't dominate the screen with a giant bar.
+      const BAR_WIDTH = 28
+      const pipW = BAR_WIDTH / e.maxHp
+      const gap = pipW > 3 ? 1 : 0
+      const startX = cx - BAR_WIDTH / 2
       for (let i = 0; i < e.maxHp; i++) {
         ctx.fillStyle = i < e.hp ? "#ff6080" : "#3a2050"
-        ctx.fillRect(cx - e.maxHp * 3 + i * 6, cy - eH / 2 - 6, 4, 3)
+        ctx.fillRect(startX + i * pipW, cy - eH / 2 - 6, Math.max(1, pipW - gap), 3)
       }
     }
   }
