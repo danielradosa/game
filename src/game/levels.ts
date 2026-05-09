@@ -3,6 +3,7 @@ import { chance, randInt, seedRng } from "@/game/rng"
 import type {
   DelveLevel,
   EnemySpawn,
+  EnemyType,
   OverworldLevel,
   TileChar,
 } from "@/game/types/physics"
@@ -359,23 +360,35 @@ export function generateDelve(seed: number, tier = 0): DelveLevel {
   // Enemy count scales with width and tier. Half spawn on platforms, half on
   // the floor — ghosts pass through walls anyway, so floor placement just
   // means they start at ground level.
+  //
+  // Type mix: ghosts dominate (60%), slammers are the heavy threat (25%),
+  // spitters are rare ranged hazards (15%). Spitters strongly prefer platform
+  // placement so they hold elevation while kiting; slammers anywhere.
   const enemyMin = Math.max(3, Math.floor(W / 14))
   const enemyMax = Math.max(enemyMin + 2, Math.floor(W / 8))
   const enemyCount = randInt(rng, enemyMin, enemyMax) + tier * 2
+  const pickType = (): EnemyType => {
+    const r = rng()
+    if (r < 0.15) return "spitter"
+    if (r < 0.4) return "slammer"
+    return "ghost"
+  }
   const enemySpawns: EnemySpawn[] = []
   for (let i = 0; i < enemyCount; i++) {
-    if (plats.length > 0 && chance(rng, 0.5)) {
-      const p = plats[randInt(rng, 0, plats.length - 1)]!
+    const type = pickType()
+    const wantPlat = type === "spitter" ? chance(rng, 0.85) : chance(rng, 0.5)
+    if (plats.length > 0 && wantPlat) {
+      const pl = plats[randInt(rng, 0, plats.length - 1)]!
       enemySpawns.push({
-        type: "ghost",
-        x: (p.x + Math.floor(p.w / 2)) * TILE_SIZE,
-        y: (p.y - 1) * TILE_SIZE,
+        type,
+        x: (pl.x + Math.floor(pl.w / 2)) * TILE_SIZE,
+        y: (pl.y - 1) * TILE_SIZE,
       })
     } else {
       // Floor placement, kept clear of spawn (left) and exit (right) zones.
       const ex = randInt(rng, 8, W - 8)
       enemySpawns.push({
-        type: "ghost",
+        type,
         x: ex * TILE_SIZE,
         y: (H - 3) * TILE_SIZE,
       })

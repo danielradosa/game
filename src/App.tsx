@@ -199,6 +199,7 @@ export default function App() {
       s.p.dashFrames = 0
       s.p.dashCool = 0
       s.enemies = spawnEnemiesFrom(s.dl.enemySpawns, s.defeatedEnemies)
+      s.projectiles = []
       s.p.hp = s.p.maxHp
       setHp(s.p.hp)
       snapRenderPrev(s)
@@ -240,6 +241,7 @@ export default function App() {
     s.p.dashFrames = 0
     s.p.dashCool = 0
     s.enemies = []
+    s.projectiles = []
     s.p.hp = s.p.maxHp
     setHp(s.p.hp)
     snapRenderPrev(s)

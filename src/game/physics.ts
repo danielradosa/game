@@ -26,14 +26,12 @@ import {
   SLASH_COOLDOWN,
   SLASH_DAMAGE,
   SLASH_REACH,
-  ENEMY_WIDTH,
-  ENEMY_HEIGHT,
-  ENEMY_HP,
+  ENEMY_STATS,
   ENEMY_HIT_IFRAMES,
   ENEMY_KNOCKBACK,
-  ENEMY_CHASE_SPEED,
-  ENEMY_KILL_XP,
-  ENEMY_KILL_MATERIALS,
+  PROJECTILE_SPEED,
+  PROJECTILE_LIFE,
+  PROJECTILE_RADIUS,
 } from "@/game/constants"
 import { ZONES } from "@/game/data"
 import { isSolid, isPlat } from "@/game/levels"
@@ -109,6 +107,7 @@ export function spawnEnemiesFrom(
   const out: Enemy[] = []
   spawns.forEach((sp, i) => {
     if (defeated.has(i)) return
+    const stats = ENEMY_STATS[sp.type]
     out.push({
       type: sp.type,
       spawnIndex: i,
@@ -116,12 +115,16 @@ export function spawnEnemiesFrom(
       y: sp.y,
       vx: 0,
       vy: 0,
-      hp: ENEMY_HP,
-      maxHp: ENEMY_HP,
+      hp: stats.hp,
+      maxHp: stats.hp,
       iframes: 0,
       alive: true,
       facing: 1,
       bob: Math.random() * Math.PI * 2,
+      windup: 0,
+      lunging: 0,
+      // Stagger spitter first-fires so a row of three doesn't volley together.
+      fireCool: sp.type === "spitter" ? 30 + Math.floor(Math.random() * 60) : 0,
     })
   })
   return out
@@ -610,6 +613,9 @@ export function stepGame(
 
   for (const e of s.enemies) {
     if (!e.alive) continue
+    const stats = ENEMY_STATS[e.type]
+    const eW = stats.w
+    const eH = stats.h
     if (e.iframes > 0) {
       e.iframes--
       e.x += e.vx
@@ -617,23 +623,93 @@ export function stepGame(
       e.vx *= 0.82
       e.vy *= 0.82
     } else {
-      // Chase: float in a straight line toward the player. Ghosts ignore
-      // terrain by design — they pass through walls.
-      const dxe = pCx - (e.x + ENEMY_WIDTH / 2)
-      const dye = pCy - (e.y + ENEMY_HEIGHT / 2)
+      // Per-archetype AI. All ghosts/slammers/spitters ignore terrain (no
+      // tile collision) — that's a deliberate simplification for v1.
+      const dxe = pCx - (e.x + eW / 2)
+      const dye = pCy - (e.y + eH / 2)
       const dlen = Math.hypot(dxe, dye) || 1
-      e.vx = (dxe / dlen) * ENEMY_CHASE_SPEED
-      e.vy = (dye / dlen) * ENEMY_CHASE_SPEED
-      e.x += e.vx
-      e.y += e.vy
       e.facing = dxe > 0 ? 1 : -1
+      switch (e.type) {
+        case "ghost": {
+          const sp = stats.chaseSpeed
+          e.vx = (dxe / dlen) * sp
+          e.vy = (dye / dlen) * sp
+          e.x += e.vx
+          e.y += e.vy
+          break
+        }
+        case "slammer": {
+          // 3-state cycle: chase → windup → lunge → chase.
+          if (e.lunging > 0) {
+            e.lunging--
+            e.x += e.vx
+            e.y += e.vy
+            // Friction during lunge so it decelerates naturally at the end.
+            e.vx *= 0.94
+            e.vy *= 0.94
+          } else if (e.windup > 0) {
+            e.windup--
+            // Telegraphed pause — stand still, slight bob.
+            e.vx *= 0.7
+            e.vy *= 0.7
+            e.x += e.vx
+            e.y += e.vy
+            if (e.windup === 0) {
+              const slamStats = ENEMY_STATS.slammer
+              e.lunging = slamStats.lungeFrames
+              e.vx = (dxe / dlen) * slamStats.lungeSpeed
+              e.vy = (dye / dlen) * slamStats.lungeSpeed
+            }
+          } else {
+            const sp = stats.chaseSpeed
+            e.vx = (dxe / dlen) * sp
+            e.vy = (dye / dlen) * sp
+            e.x += e.vx
+            e.y += e.vy
+            // Trigger windup once close enough.
+            if (dlen < 140) e.windup = ENEMY_STATS.slammer.windupFrames
+          }
+          break
+        }
+        case "spitter": {
+          // Kite away when too close, drift slowly when distant. Fires a
+          // straight projectile every fireInterval ticks.
+          const spStats = ENEMY_STATS.spitter
+          const sp = stats.chaseSpeed
+          if (dlen < spStats.kiteDistance) {
+            e.vx = (-dxe / dlen) * sp * 1.6
+            e.vy = (-dye / dlen) * sp * 1.6
+          } else {
+            e.vx = (dxe / dlen) * sp
+            e.vy = (dye / dlen) * sp
+          }
+          e.x += e.vx
+          e.y += e.vy
+          if (e.fireCool > 0) {
+            e.fireCool--
+          } else {
+            e.fireCool = spStats.fireInterval
+            const ux = dxe / dlen
+            const uy = dye / dlen
+            s.projectiles.push({
+              x: e.x + eW / 2,
+              y: e.y + eH / 2,
+              vx: ux * PROJECTILE_SPEED,
+              vy: uy * PROJECTILE_SPEED,
+              life: PROJECTILE_LIFE,
+            })
+            playSnd("collect")
+          }
+          break
+        }
+      }
     }
     e.bob += 0.07
 
-    const eCx = e.x + ENEMY_WIDTH / 2
-    const eCy = e.y + ENEMY_HEIGHT / 2
-    const overlapX = Math.abs(eCx - pCx) < pHalfW + ENEMY_WIDTH / 2
-    const overlapY = Math.abs(eCy - pCy) < pHalfH + ENEMY_HEIGHT / 2
+    const eCx = e.x + eW / 2
+    const eCy = e.y + eH / 2
+    const overlapX = Math.abs(eCx - pCx) < pHalfW + eW / 2
+    const overlapY = Math.abs(eCy - pCy) < pHalfH + eH / 2
     if (!overlapX || !overlapY) continue
 
     // Sword auto-slashes on overlap. Roll i-frames don't gate this — rolling
@@ -653,8 +729,8 @@ export function stepGame(
         e.alive = false
         s.defeatedEnemies.add(e.spawnIndex)
         addParticles(s, eCx, eCy, 24, "#c08aff", 2.2)
-        cb.addMaterials(ENEMY_KILL_MATERIALS)
-        cb.grantXP(ENEMY_KILL_XP, "slain")
+        cb.addMaterials(stats.killMat)
+        cb.grantXP(stats.killXp, "slain")
         playSnd("big_collect")
         if (
           s.current === "delve" &&
@@ -710,6 +786,42 @@ export function stepGame(
     }
   }
   s.enemies = s.enemies.filter((e) => e.alive)
+
+  // ---- spitter projectiles ----
+  // Step each orb, expire on life-out / wall hit / player hit. Same damage
+  // rules as enemy contact (player iframes/roll iframes both block).
+  for (const pr of s.projectiles) {
+    pr.x += pr.vx
+    pr.y += pr.vy
+    pr.life--
+    // Solid-tile check — orbs aren't ghostly, they pop on walls.
+    const tx = Math.floor(pr.x / TILE_SIZE)
+    const ty = Math.floor(pr.y / TILE_SIZE)
+    if (isSolid(map[ty]?.[tx])) {
+      pr.life = 0
+      addParticles(s, pr.x, pr.y, 6, "#a060ff", 1.2)
+      continue
+    }
+    // Player overlap.
+    const dpx = pr.x - pCx
+    const dpy = pr.y - pCy
+    const reach = PROJECTILE_RADIUS + Math.max(PLAYER_WIDTH, PLAYER_HEIGHT) / 2
+    if (dpx * dpx + dpy * dpy < reach * reach) {
+      if (p.damageIframes <= 0 && p.iframes <= 0) {
+        p.hp = Math.max(0, p.hp - 1)
+        p.damageIframes = DAMAGE_IFRAMES
+        p.vx = (pCx > pr.x ? 1 : -1) * DAMAGE_KNOCKBACK_VX * 0.7
+        p.vy = DAMAGE_KNOCKBACK_VY * 0.7
+        s.cam.shake = Math.max(s.cam.shake, 5)
+        addParticles(s, pCx, pCy, 12, "#ff6080", 1.6)
+        playSnd("land")
+        cb.setHp(p.hp)
+      }
+      pr.life = 0
+      addParticles(s, pr.x, pr.y, 6, "#a060ff", 1.2)
+    }
+  }
+  s.projectiles = s.projectiles.filter((pr) => pr.life > 0)
 
   // ---- camera ----
   const camTargetX = p.x + PLAYER_WIDTH / 2 - 880 / 2
@@ -815,6 +927,7 @@ export function makeInitialState(
     hitStop: 0,
     collected,
     particles: [],
+    projectiles: [],
     bgPart: [],
     time: 0,
     hasJumped: false,

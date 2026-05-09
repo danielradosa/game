@@ -4,8 +4,8 @@ import {
   TILE_SIZE,
   VIEWPORT_HEIGHT,
   VIEWPORT_WIDTH,
-  ENEMY_WIDTH,
-  ENEMY_HEIGHT,
+  ENEMY_STATS,
+  PROJECTILE_RADIUS,
   SLASH_FRAMES,
 } from "@/game/constants"
 import { cellKey } from "@/game/physics"
@@ -54,6 +54,7 @@ export function draw(ctx: Ctx, s: GameState, ch: Character, alpha: number): void
   drawTiles(ctx, s)
   drawEntities(ctx, s)
   drawEnemies(ctx, s)
+  drawProjectiles(ctx, s)
   for (const pt of s.particles) {
     ctx.globalAlpha = Math.max(0, pt.life / pt.max)
     ctx.fillStyle = pt.color
@@ -457,36 +458,133 @@ function drawEntities(ctx: Ctx, s: GameState): void {
 function drawEnemies(ctx: Ctx, s: GameState): void {
   for (const e of s.enemies) {
     if (!e.alive) continue
-    const cx = e.x + ENEMY_WIDTH / 2
-    const cy = e.y + ENEMY_HEIGHT / 2 + Math.sin(e.bob) * 3
+    const stats = ENEMY_STATS[e.type]
+    const eW = stats.w
+    const eH = stats.h
+    const cx = e.x + eW / 2
+    const cy = e.y + eH / 2 + Math.sin(e.bob) * 3
     const flash = e.iframes > 0 && (e.iframes & 2) === 0
-    // Trailing wisp
-    ctx.globalAlpha = 0.25
-    ctx.fillStyle = "#5a3a8a"
-    ctx.beginPath()
-    ctx.ellipse(cx, cy + 8, ENEMY_WIDTH * 0.6, 5, 0, 0, Math.PI * 2)
-    ctx.fill()
-    // Body
-    ctx.globalAlpha = 0.92
-    ctx.fillStyle = flash ? "#ffffff" : "#9a6ad8"
-    ctx.beginPath()
-    ctx.arc(cx, cy, ENEMY_WIDTH / 2, 0, Math.PI * 2)
-    ctx.fill()
-    // Eyes
+
+    if (e.type === "ghost") {
+      ctx.globalAlpha = 0.25
+      ctx.fillStyle = "#5a3a8a"
+      ctx.beginPath()
+      ctx.ellipse(cx, cy + 8, eW * 0.6, 5, 0, 0, Math.PI * 2)
+      ctx.fill()
+      ctx.globalAlpha = 0.92
+      ctx.fillStyle = flash ? "#ffffff" : "#9a6ad8"
+      ctx.beginPath()
+      ctx.arc(cx, cy, eW / 2, 0, Math.PI * 2)
+      ctx.fill()
+      ctx.globalAlpha = 1
+      ctx.fillStyle = flash ? "#9a6ad8" : "#1a0a2a"
+      const ex = e.facing > 0 ? 3 : -3
+      ctx.beginPath()
+      ctx.arc(cx - 4 + ex, cy - 2, 2, 0, Math.PI * 2)
+      ctx.arc(cx + 4 + ex, cy - 2, 2, 0, Math.PI * 2)
+      ctx.fill()
+    } else if (e.type === "slammer") {
+      // Stout, armored body. Windup turns the body red as a tell; lunge
+      // streaks the silhouette. Eye row is angry.
+      const winduping = e.windup > 0
+      const lunging = e.lunging > 0
+      ctx.globalAlpha = 0.3
+      ctx.fillStyle = "#3a1a1a"
+      ctx.beginPath()
+      ctx.ellipse(cx, cy + 12, eW * 0.55, 6, 0, 0, Math.PI * 2)
+      ctx.fill()
+      ctx.globalAlpha = 0.95
+      const baseColor = flash ? "#ffffff" : winduping ? "#e84040" : "#a83030"
+      ctx.fillStyle = baseColor
+      // Slightly hexagonal body
+      ctx.beginPath()
+      ctx.moveTo(cx - eW * 0.45, cy)
+      ctx.lineTo(cx - eW * 0.3, cy - eH * 0.42)
+      ctx.lineTo(cx + eW * 0.3, cy - eH * 0.42)
+      ctx.lineTo(cx + eW * 0.45, cy)
+      ctx.lineTo(cx + eW * 0.3, cy + eH * 0.42)
+      ctx.lineTo(cx - eW * 0.3, cy + eH * 0.42)
+      ctx.closePath()
+      ctx.fill()
+      // Plate seam
+      ctx.fillStyle = "#5a1010"
+      ctx.fillRect(cx - eW * 0.4, cy - 1, eW * 0.8, 2)
+      // Eyes
+      ctx.fillStyle = winduping || lunging ? "#fff200" : "#ffe060"
+      ctx.fillRect(cx - 8, cy - 6, 4, 3)
+      ctx.fillRect(cx + 4, cy - 6, 4, 3)
+      // Windup tell — a circle pulse around the body
+      if (winduping) {
+        const stats2 = ENEMY_STATS.slammer
+        const t = 1 - e.windup / stats2.windupFrames
+        ctx.globalAlpha = 0.5 * (1 - t)
+        ctx.strokeStyle = "#ff5040"
+        ctx.lineWidth = 3
+        ctx.beginPath()
+        ctx.arc(cx, cy, eW * 0.5 + t * 28, 0, Math.PI * 2)
+        ctx.stroke()
+      }
+    } else if (e.type === "spitter") {
+      // Small floating orb-like creature with a single glowing eye that
+      // brightens as it's about to fire.
+      const stats3 = ENEMY_STATS.spitter
+      const charging = e.fireCool < 20
+      ctx.globalAlpha = 0.25
+      ctx.fillStyle = "#2a1a3a"
+      ctx.beginPath()
+      ctx.ellipse(cx, cy + 6, eW * 0.45, 4, 0, 0, Math.PI * 2)
+      ctx.fill()
+      ctx.globalAlpha = 0.95
+      ctx.fillStyle = flash ? "#ffffff" : "#5a30a0"
+      ctx.beginPath()
+      ctx.arc(cx, cy, eW / 2, 0, Math.PI * 2)
+      ctx.fill()
+      // Single big eye, color shifts as fire approaches
+      const eyeColor = charging
+        ? "#ff80ff"
+        : e.fireCool < stats3.fireInterval / 2
+          ? "#c060ff"
+          : "#a060e0"
+      ctx.fillStyle = eyeColor
+      ctx.beginPath()
+      ctx.arc(cx + e.facing * 2, cy - 2, 4, 0, Math.PI * 2)
+      ctx.fill()
+      ctx.fillStyle = "#1a0a2a"
+      ctx.beginPath()
+      ctx.arc(cx + e.facing * 3, cy - 2, 1.5, 0, Math.PI * 2)
+      ctx.fill()
+    }
+
+    // HP pip row — only show when damaged so chase enemies don't read busy.
     ctx.globalAlpha = 1
-    ctx.fillStyle = flash ? "#9a6ad8" : "#1a0a2a"
-    const ex = e.facing > 0 ? 3 : -3
-    ctx.beginPath()
-    ctx.arc(cx - 4 + ex, cy - 2, 2, 0, Math.PI * 2)
-    ctx.arc(cx + 4 + ex, cy - 2, 2, 0, Math.PI * 2)
-    ctx.fill()
-    // HP pip row above
     if (e.hp < e.maxHp) {
       for (let i = 0; i < e.maxHp; i++) {
         ctx.fillStyle = i < e.hp ? "#ff6080" : "#3a2050"
-        ctx.fillRect(cx - e.maxHp * 3 + i * 6, cy - ENEMY_HEIGHT / 2 - 6, 4, 3)
+        ctx.fillRect(cx - e.maxHp * 3 + i * 6, cy - eH / 2 - 6, 4, 3)
       }
     }
+  }
+  ctx.globalAlpha = 1
+}
+
+function drawProjectiles(ctx: Ctx, s: GameState): void {
+  for (const pr of s.projectiles) {
+    // Soft outer glow
+    ctx.globalAlpha = 0.4
+    ctx.fillStyle = "#c060ff"
+    ctx.beginPath()
+    ctx.arc(pr.x, pr.y, PROJECTILE_RADIUS + 3, 0, Math.PI * 2)
+    ctx.fill()
+    // Hard core
+    ctx.globalAlpha = 0.95
+    ctx.fillStyle = "#7a30c0"
+    ctx.beginPath()
+    ctx.arc(pr.x, pr.y, PROJECTILE_RADIUS, 0, Math.PI * 2)
+    ctx.fill()
+    ctx.fillStyle = "#ffffff"
+    ctx.beginPath()
+    ctx.arc(pr.x - 1.5, pr.y - 1.5, 1.5, 0, Math.PI * 2)
+    ctx.fill()
   }
   ctx.globalAlpha = 1
 }

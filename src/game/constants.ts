@@ -46,11 +46,45 @@ export const SLASH_DAMAGE = 1
 // extra reach doesn't double-hit.
 export const SLASH_REACH = 32
 
-export const ENEMY_WIDTH = 26
-export const ENEMY_HEIGHT = 26
-export const ENEMY_HP = 2
+// Per-archetype enemy stats. Width/height drive both the hitbox and the
+// procedural drawing. chaseSpeed is the pixels-per-tick max in idle chase
+// state. Slammer uses lungeSpeed during its lunge frames. Spitter mostly
+// hovers; kiteDistance is the comfort radius from the player.
+export const ENEMY_STATS = {
+  ghost: {
+    w: 26,
+    h: 26,
+    hp: 2,
+    chaseSpeed: 1.5,
+    killXp: 25,
+    killMat: 1,
+  },
+  slammer: {
+    w: 36,
+    h: 36,
+    hp: 3,
+    chaseSpeed: 0.9,
+    lungeSpeed: 6.5,
+    windupFrames: 32,
+    lungeFrames: 14,
+    killXp: 60,
+    killMat: 2,
+  },
+  spitter: {
+    w: 22,
+    h: 22,
+    hp: 1,
+    chaseSpeed: 0.5,
+    kiteDistance: 240, // px; spitter drifts away when player gets closer
+    fireInterval: 90, // frames between shots
+    killXp: 40,
+    killMat: 1,
+  },
+} as const
+
 export const ENEMY_HIT_IFRAMES = 14
 export const ENEMY_KNOCKBACK = 4
-export const ENEMY_CHASE_SPEED = 1.5
-export const ENEMY_KILL_XP = 25
-export const ENEMY_KILL_MATERIALS = 1
+
+export const PROJECTILE_SPEED = 4.2
+export const PROJECTILE_LIFE = 90
+export const PROJECTILE_RADIUS = 6

@@ -161,7 +161,10 @@ export interface PlayerState {
 }
 
 // ===== Enemy =====
-export type EnemyType = "ghost"
+// ghost   — straight-line floater, low HP, fills the chase niche
+// slammer — bulkier, slower chase, telegraphed windup → lunge attack
+// spitter — light, kites at range, fires homing-less projectile orbs
+export type EnemyType = "ghost" | "slammer" | "spitter"
 
 export interface Enemy {
   type: EnemyType
@@ -176,6 +179,20 @@ export interface Enemy {
   alive: boolean
   facing: -1 | 1
   bob: number // visual oscillation phase
+  // Per-archetype AI counters. Zero for types that don't use them.
+  windup: number // slammer: ticks until lunge starts
+  lunging: number // slammer: ticks remaining in active lunge
+  fireCool: number // spitter: ticks until next projectile
+}
+
+// Slow orbs fired by spitters. Damage on player overlap, decay on life-out
+// or solid-tile contact.
+export interface Projectile {
+  x: number
+  y: number
+  vx: number
+  vy: number
+  life: number
 }
 
 // ===== Portal state machine =====
@@ -203,6 +220,7 @@ export interface GameState {
   prevCamY: number
   p: PlayerState
   enemies: Enemy[] // active for the current scene; rebuilt on transition
+  projectiles: Projectile[] // active spitter orbs, cleared on scene transition
   // CURRENT delve session's progress. On portal entry these are restored from
   // the active portal's PortalState; on exit they're snapshotted back. Each
   // portal has its own independent delve persistence.
