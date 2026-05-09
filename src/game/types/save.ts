@@ -1,98 +1,10 @@
-// Persistence layer types for src/game/save.ts.
-// Save data lives in localStorage; the manifest is the index that the
-// load menu enumerates without loading every save body.
-
-import type { Materials } from "@/game/economy"
-import type { Character, LostCache, SceneId } from "@/game/types/physics"
-
-// HUD state mirrored into a save. Defined here (rather than App.tsx) because
-// save.ts is the consumer that needs the contract.
-export type QuestStage = "intro" | "active" | "cleared" | "done"
-
-export interface HudState {
-  level: number
-  xp: number
-  materials: Materials
-  discovered: string[] // ZoneId values (kept loose — see data.ts)
-  achievements: string[] // AchievementId values (loose for the same reason)
-  inDelve: boolean
-  hasSword: boolean
-  questStage: QuestStage
-  mods: string[] // crafted mod ids (see data.ts MODS)
-  // Permanent +max-HP buffs purchased from the Merchant. Applied to p.maxHp
-  // wherever the live player is initialized (start, load, scene transition).
-  maxHpBonus: number
-  // Equipped weapon tier — index into WEAPONS table in data.ts. 0 = default
-  // Worn Blade, increments via Elder forge upgrades.
-  weaponLevel: number
-  // Active consumables stash. Stacked counts; capped at 5 each in App.
-  consumables: { heal: number; storm: number }
-  // Number of times the player has performed an Elder Rebirth (rerolls
-  // worldSeed when every portal is destroyed). Persisted across runs;
-  // surfaced as a "♻ ×N" badge in the load menu.
-  rebirths: number
-  // Picked level-up perks (PerkId values, kept loose like achievements).
-  // Up to 3 per save, in pick order. Effects dispatched via cb.hasPerk.
-  perks: string[]
-  // When set, blocks gameplay until the player picks a perk via
-  // <PerkPicker>. Cleared once a perk is appended to `perks`.
-  pendingPerkChoice: 5 | 10 | 15 | null
-}
-
-// What gets serialized into one save slot.
-export interface SaveData {
-  character: Character
-  hud: HudState
-  pos: {
-    x: number
-    y: number
-    scene: SceneId
-  }
-  collected: string[] // "<scene>:<tx>,<ty>" keys; rehydrated into a Set on load
-  defeatedEnemies: number[] // current delve session's defeats
-  delveCleared: boolean // current delve session's cleared flag
-  // Procedural delve identity for the CURRENT session. Optional for backwards
-  // compat with saves created before procgen landed.
-  delveSeed?: number
-  delveTier?: number
-  // Per-portal state machine, serialized as a Record (Maps don't JSON cleanly).
-  portals?: Record<string, PortalStateSerialized>
-  activePortalId?: string | null
-  // Seed for the procedural overworld. Optional for backwards compat with
-  // saves created before the procgen overworld landed.
-  worldSeed?: number
-  // DEPRECATED single-portal flag from before multi-portal landed. Old saves
-  // with this set get migrated forward on load.
-  portalDestroyed?: boolean
-}
-
-// Mirror of PortalState with the Set serialized as an array. Stays in sync
-// with the runtime shape in src/game/types/physics.ts.
-export interface PortalStateSerialized {
-  seed: number
-  tier: number
-  status: "fresh" | "destroyed"
-  defeatedEnemies: number[]
-  cleared: boolean
-  lostCache: LostCache | null
-}
-
-// One row in the load-menu list. Cheap to enumerate.
-export interface SaveMeta {
-  id: string
-  name: string
-  level: number
-  materials: number
-  discovered: number // count, not list — keeps the manifest small
-  date: string // ISO string from new Date().toISOString()
-  where: string // human-readable: "In the Delve" | "Surface"
-  // Mirror of HudState.rebirths so the load menu can render a badge
-  // without having to read the full save body.
-  rebirths: number
-  // Mirror of SaveData.worldSeed so the load menu can show a short
-  // hex snippet (last 6 chars) per save row, helping the player tell
-  // worlds apart at a glance. Legacy manifests default to 0 on read.
-  worldSeed: number
-}
-
-export type SaveManifest = SaveMeta[]
+// Save types moved to @/shared/save for cross-package use (client + server).
+// This file remains as a stable import path for existing call sites.
+export type {
+  HudState,
+  PortalStateSerialized,
+  QuestStage,
+  SaveData,
+  SaveManifest,
+  SaveMeta,
+} from "@/shared/save"

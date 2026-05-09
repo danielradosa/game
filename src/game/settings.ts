@@ -6,25 +6,8 @@
 // point; key rebinding is the follow-up task and will swap the handler over
 // to read from this settings ref.
 
-export interface KeyBindings {
-  moveLeft: string
-  moveRight: string
-  moveUp: string
-  moveDown: string
-  jump: string
-  dash: string
-  interact: string
-  heal: string
-  storm: string
-}
-
-export interface Settings {
-  volume: number // 0..100, default 80
-  muted: boolean // default false
-  fullscreen: boolean // user preference; not auto-applied on load
-  keys: KeyBindings
-  showTutorialNextStart: boolean
-}
+import type { KeyBindings, Settings } from "@/shared/settings"
+export type { KeyBindings, Settings }
 
 export const DEFAULT_KEYS: KeyBindings = {
   // WASD-style platformer defaults. W is moveUp (used for aim-glide direction
