@@ -567,10 +567,15 @@ export function stepGame(
       }
   }
   {
-    const left = Math.floor(p.x / TILE_SIZE),
-      right = Math.floor((p.x + PLAYER_WIDTH - 1) / TILE_SIZE)
-    const top = Math.floor(p.y / TILE_SIZE),
-      bottom = Math.floor((p.y + PLAYER_HEIGHT - 1) / TILE_SIZE)
+    // Interactable search range — pad by 1 tile on each side so portals,
+    // NPCs and the return portal trigger when the player is "near" rather
+    // than literally overlapping the tile. Keeps the prompt-and-press feel
+    // generous.
+    const PAD = TILE_SIZE
+    const left = Math.floor((p.x - PAD) / TILE_SIZE),
+      right = Math.floor((p.x + PLAYER_WIDTH - 1 + PAD) / TILE_SIZE)
+    const top = Math.floor((p.y - PAD) / TILE_SIZE),
+      bottom = Math.floor((p.y + PLAYER_HEIGHT - 1 + PAD) / TILE_SIZE)
     for (let ty = top; ty <= bottom; ty++)
       for (let tx = left; tx <= right; tx++) {
         const c = map[ty]?.[tx]
@@ -868,11 +873,14 @@ export function stepGame(
         addParticles(s, eCx, eCy, 24, "#c08aff", 2.2)
         cb.addMaterials(stats.killMat)
         cb.grantXP(stats.killXp, "slain")
-        // Sanguine: lifesteal one heart per kill (capped at maxHp).
-        if (mods.includes("sanguine") && p.hp < p.maxHp) {
-          p.hp += 1
-          cb.setHp(p.hp)
-          addParticles(s, p.x + PLAYER_WIDTH / 2, p.y + PLAYER_HEIGHT / 2, 8, "#ff5070", 1.4)
+        // Sanguine: lifesteal one heart per kill, hard-clamped to maxHp.
+        if (mods.includes("sanguine")) {
+          const next = Math.min(p.maxHp, p.hp + 1)
+          if (next > p.hp) {
+            p.hp = next
+            cb.setHp(p.hp)
+            addParticles(s, p.x + PLAYER_WIDTH / 2, p.y + PLAYER_HEIGHT / 2, 8, "#ff5070", 1.4)
+          }
         }
         playSnd("big_collect")
         if (

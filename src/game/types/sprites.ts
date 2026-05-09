@@ -10,8 +10,30 @@ export type SpriteName =
   | "collectible"
   | "cache"
   | "portal_delve"
+  | "portal_delve_hard"
+  | "portal_destroyed"
   | "portal_return"
+  | "npc_elder"
+  | "npc_merchant"
+  // legacy alias kept for the procedural fallback path; prefer npc_elder
   | "npc"
+  | "enemy_ghost"
+  | "enemy_slammer"
+  | "enemy_spitter"
+  | "enemy_burrower"
+  | "projectile"
+  // Per-weapon slash visuals — replace the procedural arc when a sprite is
+  // loaded. Drawn at the slash anchor with bottom-center anchor; mirrored
+  // automatically based on player.facing.
+  | "weapon_worn"
+  | "weapon_forged"
+  | "weapon_honed"
+  // Mod auras / per-effect overlays. Render code attempts these first then
+  // falls back to the procedural particles/arcs.
+  | "aura_searing"
+  | "aura_stormbound"
+  | "aura_glacial"
+  | "aura_sanguine"
   | "tile_ground_delve"
   | "tile_platform_delve"
 

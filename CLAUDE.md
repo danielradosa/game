@@ -119,3 +119,27 @@ The save loader defaults missing fields forward (`hud.hasSword ?? true`, `questS
 - The codebase is fully TypeScript; `tsc --noEmit` runs as part of `npm run build`. Keep it clean.
 - Tailwind `content` glob covers `.{js,jsx,ts,tsx}` — add new file types here if classes start getting purged in production.
 - Canvas pixel buffer is sized to display CSS pixels × `devicePixelRatio`; `render.draw` calls `ctx.setTransform(scale, …)` so all engine code authors in world units (`VIEWPORT_WIDTH × VIEWPORT_HEIGHT`).
+
+## Sprite slots (custom art workflow)
+
+Every visual entity has a sprite slot in `src/game/sprites.ts` (`SPRITES` map). To use a custom image: `import src from "@/assets/<file>.webp"`, then `SPRITES.<name> = loadSprite(src)` at the bottom of that file. The renderer always tries the sprite first via `tryDrawSprite()` and falls back to the procedural draw if the slot is `null`. Slots cover: `player`, all four enemies (`enemy_ghost` / `_slammer` / `_spitter` / `_burrower`), both NPCs (`npc_elder` / `npc_merchant`), portals (`portal_delve` / `portal_delve_hard` / `portal_destroyed` / `portal_return`), tiles (`tile_ground` / `_grass` / `_platform` / `_ground_delve` / `_platform_delve`), pickups (`collectible` / `cache`), `projectile` (spitter orb), per-weapon slash visuals (`weapon_worn` / `weapon_forged` / `weapon_honed`), and mod auras (`aura_searing` / `aura_stormbound` / `aura_glacial` / `aura_sanguine`).
+
+## Phase C — progression & meaning (next)
+
+Phase B (combat depth) is done. Phase C makes runs feel like progress:
+
+- **Death penalty**: drop a fraction of materials on death; recoverable on next clear. Adds risk to dying; today it's free.
+- **Material rarities**: differentiate drops — basic (ghost), essence (slammer), crystal (burrower). Tier-2/3 mods cost crystals so killing the right enemies matters.
+- **Level-up perks**: at hud.level 5 / 10 / 15 offer a passive choice (extra dash charge, +1 starting HP per delve, double XP from kills). Persists in save.
+- **Wider portal economy**: more portals per overworld + a regen mechanic when ALL portals are destroyed (e.g. Elder offers a "rebirth" for materials that rerolls `worldSeed`).
+- **Achievements pass**: a4/a5/a9 are wired now; sweep the rest for missing triggers.
+
+## Phase D — polish & content (after C)
+
+- **Sprite pass**: wire `SPRITES.*` for player, all four enemies, both NPCs, weapons, auras. The slots are exposed; only need art.
+- **Audio pass**: per-archetype hit sounds, mod activation cues, ambient bed.
+- **Save manifest UX**: filter / sort / delete confirmation; show world seed on rows.
+- **Settings**: rebindable keys, audio volume sliders, fullscreen toggle.
+- **Tutorial / first-run polish**: brief overlay teaching keys, especially the new 1/2 hotkeys.
+- **Mobile touch controls**: virtual stick + slash button (long-tail nice-to-have).
+- **Build / host**: deploy to Railway or static host with shareable URL.

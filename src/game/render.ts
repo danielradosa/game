@@ -11,6 +11,7 @@ import {
 import { cellKey } from "@/game/physics"
 import { ASSET_SIZES, SPRITES, isReady, tryDrawSprite } from "@/game/sprites"
 import type { Character, GameState, Theme, TileChar } from "@/game/types/physics"
+import type { SpriteName } from "@/game/types/sprites"
 
 type Ctx = CanvasRenderingContext2D
 
@@ -409,45 +410,77 @@ function drawEntities(ctx: Ctx, s: GameState): void {
         ctx.textAlign = "center"
         ctx.fillText("sealed", cx, y - 4)
       } else if (c === "n") {
+        // Elder NPC — taller robed figure with proper neck + hair on the
+        // top of the head. Sprite slot npc_elder takes priority.
         const cx = x + TILE_SIZE / 2,
           by = y + TILE_SIZE - 4
-        if (!tryDrawSprite(ctx, "npc", cx, by)) {
+        if (!tryDrawSprite(ctx, "npc_elder", cx, by)) {
           ctx.fillStyle = "#3a2030"
           ctx.beginPath()
           ctx.ellipse(cx, by + 2, 10, 3, 0, 0, Math.PI * 2)
           ctx.fill()
+          // Robe (taller torso)
           ctx.fillStyle = "#5a4480"
-          ctx.fillRect(cx - 8, by - 22, 16, 18)
+          ctx.fillRect(cx - 9, by - 32, 18, 28)
+          // Sash detail
+          ctx.fillStyle = "#3a2860"
+          ctx.fillRect(cx - 9, by - 18, 18, 2)
+          // Neck — skin column between robe top and head bottom
           ctx.fillStyle = "#e8c1a0"
+          ctx.fillRect(cx - 3, by - 36, 6, 5)
+          // Head sits above the neck so hair anchors correctly
           ctx.beginPath()
-          ctx.arc(cx, by - 28, 7, 0, Math.PI * 2)
+          ctx.arc(cx, by - 44, 7, 0, Math.PI * 2)
           ctx.fill()
+          // Hair — sits on the top half of the head, not across the body
           ctx.fillStyle = "#3a2820"
-          ctx.fillRect(cx - 7, by - 33, 14, 6)
+          ctx.beginPath()
+          ctx.arc(cx, by - 46, 8, Math.PI, 0)
+          ctx.fill()
+          ctx.fillRect(cx - 8, by - 46, 3, 6)
+          ctx.fillRect(cx + 5, by - 46, 3, 6)
+          // Eyes
+          ctx.fillStyle = "#1a1a1a"
+          ctx.fillRect(cx - 3, by - 44, 1.5, 1.5)
+          ctx.fillRect(cx + 1.5, by - 44, 1.5, 1.5)
         }
         ctx.fillStyle = "rgba(255,255,255,0.85)"
         ctx.font = "12px sans-serif"
         ctx.textAlign = "center"
         ctx.fillText("[E] Talk", cx, y - 8)
       } else if (c === "M") {
-        // Merchant — green-cloaked silhouette with a bronze trim, distinct
-        // from the Elder's purple. Procedural draw only for now.
+        // Merchant — green-cloaked figure with bronze belt and dark hair.
+        // Sprite slot npc_merchant for custom artwork.
         const cx = x + TILE_SIZE / 2,
           by = y + TILE_SIZE - 4
-        ctx.fillStyle = "#202a30"
-        ctx.beginPath()
-        ctx.ellipse(cx, by + 2, 10, 3, 0, 0, Math.PI * 2)
-        ctx.fill()
-        ctx.fillStyle = "#3a6a4a"
-        ctx.fillRect(cx - 8, by - 22, 16, 18)
-        ctx.fillStyle = "#c8a050"
-        ctx.fillRect(cx - 8, by - 12, 16, 2)
-        ctx.fillStyle = "#e8c1a0"
-        ctx.beginPath()
-        ctx.arc(cx, by - 28, 7, 0, Math.PI * 2)
-        ctx.fill()
-        ctx.fillStyle = "#1a1a1a"
-        ctx.fillRect(cx - 6, by - 33, 12, 5)
+        if (!tryDrawSprite(ctx, "npc_merchant", cx, by)) {
+          ctx.fillStyle = "#202a30"
+          ctx.beginPath()
+          ctx.ellipse(cx, by + 2, 10, 3, 0, 0, Math.PI * 2)
+          ctx.fill()
+          // Cloak (taller torso to match Elder height)
+          ctx.fillStyle = "#3a6a4a"
+          ctx.fillRect(cx - 9, by - 32, 18, 28)
+          // Bronze belt across the middle
+          ctx.fillStyle = "#c8a050"
+          ctx.fillRect(cx - 9, by - 18, 18, 2)
+          // Neck
+          ctx.fillStyle = "#e8c1a0"
+          ctx.fillRect(cx - 3, by - 36, 6, 5)
+          // Head
+          ctx.beginPath()
+          ctx.arc(cx, by - 44, 7, 0, Math.PI * 2)
+          ctx.fill()
+          // Short dark hair on top of the head
+          ctx.fillStyle = "#1a1a1a"
+          ctx.beginPath()
+          ctx.arc(cx, by - 46, 7.5, Math.PI, 0)
+          ctx.fill()
+          // Eyes
+          ctx.fillStyle = "#0a0a0a"
+          ctx.fillRect(cx - 3, by - 44, 1.5, 1.5)
+          ctx.fillRect(cx + 1.5, by - 44, 1.5, 1.5)
+        }
         ctx.fillStyle = "rgba(255,255,255,0.85)"
         ctx.font = "12px sans-serif"
         ctx.textAlign = "center"
@@ -466,7 +499,26 @@ function drawEnemies(ctx: Ctx, s: GameState): void {
     const cy = e.y + eH / 2 + Math.sin(e.bob) * 3
     const flash = e.iframes > 0 && (e.iframes & 2) === 0
 
-    if (e.type === "ghost") {
+    // Sprite path for each archetype — sprite takes priority over the
+    // procedural body draw. Skip for diving burrowers (mound view below).
+    if (
+      !(e.type === "burrower" && e.diveTime > 0) &&
+      tryDrawSprite(
+        ctx,
+        e.type === "ghost"
+          ? "enemy_ghost"
+          : e.type === "slammer"
+            ? "enemy_slammer"
+            : e.type === "spitter"
+              ? "enemy_spitter"
+              : "enemy_burrower",
+        cx,
+        cy,
+      )
+    ) {
+      // Sprite handled the body. Continue past procedural bodies, but still
+      // run chill overlay + HP pip below.
+    } else if (e.type === "ghost") {
       ctx.globalAlpha = 0.25
       ctx.fillStyle = "#5a3a8a"
       ctx.beginPath()
@@ -604,8 +656,8 @@ function drawEnemies(ctx: Ctx, s: GameState): void {
       ctx.fill()
     }
 
-    // Glacial chill tint — overlay a translucent blue when chillTime > 0.
-    if (e.chillTime > 0) {
+    // Glacial chill overlay — sprite slot first, then procedural blue tint.
+    if (e.chillTime > 0 && !tryDrawSprite(ctx, "aura_glacial", cx, cy)) {
       ctx.globalAlpha = 0.35
       ctx.fillStyle = "#80c0ff"
       ctx.beginPath()
@@ -627,6 +679,8 @@ function drawEnemies(ctx: Ctx, s: GameState): void {
 
 function drawProjectiles(ctx: Ctx, s: GameState): void {
   for (const pr of s.projectiles) {
+    // Sprite slot first — drawn at center anchor.
+    if (tryDrawSprite(ctx, "projectile", pr.x, pr.y)) continue
     // Soft outer glow
     ctx.globalAlpha = 0.4
     ctx.fillStyle = "#c060ff"
@@ -661,21 +715,39 @@ function drawSlash(ctx: Ctx, s: GameState, ch: Character): void {
   const sweep = Math.PI * 0.9
   const start = p.facing > 0 ? -sweep / 2 : Math.PI - sweep / 2
 
+  // Try the per-weapon sprite first. Sprite is drawn mirrored along player
+  // facing. If absent, fall through to the procedural arc.
+  const weaponSpriteName: SpriteName =
+    s.activeWeaponLevel >= 2
+      ? "weapon_honed"
+      : s.activeWeaponLevel === 1
+        ? "weapon_forged"
+        : "weapon_worn"
   ctx.save()
-  // Base arc — coloured by the dominant mod, falling back to accent.
-  const arcColor = hasStormbound ? "#80c0ff" : hasSearing ? "#ffae40" : ch.accent
+  ctx.translate(cx, cy)
+  ctx.scale(p.facing, 1)
   ctx.globalAlpha = 1 - t
-  ctx.strokeStyle = arcColor
-  ctx.lineWidth = 4
-  ctx.beginPath()
-  ctx.arc(cx, cy, radius, start, start + sweep)
-  ctx.stroke()
-  ctx.globalAlpha = (1 - t) * 0.4
-  ctx.lineWidth = 9
-  ctx.stroke()
+  const weaponDrawn = tryDrawSprite(ctx, weaponSpriteName, 0, 0)
+  ctx.restore()
 
-  // Searing: scatter flame motes along the arc, brighter at the leading edge.
-  if (hasSearing) {
+  if (!weaponDrawn) {
+    ctx.save()
+    const arcColor = hasStormbound ? "#80c0ff" : hasSearing ? "#ffae40" : ch.accent
+    ctx.globalAlpha = 1 - t
+    ctx.strokeStyle = arcColor
+    ctx.lineWidth = 4
+    ctx.beginPath()
+    ctx.arc(cx, cy, radius, start, start + sweep)
+    ctx.stroke()
+    ctx.globalAlpha = (1 - t) * 0.4
+    ctx.lineWidth = 9
+    ctx.stroke()
+    ctx.restore()
+  }
+
+  // Searing overlay — sprite first, then procedural flame motes.
+  if (hasSearing && !tryDrawSprite(ctx, "aura_searing", cx, cy)) {
+    ctx.save()
     const sampleCount = 6
     for (let i = 0; i < sampleCount; i++) {
       const a = start + (sweep * i) / (sampleCount - 1)
@@ -690,9 +762,11 @@ function drawSlash(ctx: Ctx, s: GameState, ch: Character): void {
       ctx.arc(fx, fy, 2.5 + (1 - t) * 1.5, 0, Math.PI * 2)
       ctx.fill()
     }
+    ctx.restore()
   }
-  // Stormbound: jagged crackles flicker between the sweep and the player.
-  if (hasStormbound) {
+  // Stormbound overlay — sprite first, then procedural lightning.
+  if (hasStormbound && !tryDrawSprite(ctx, "aura_stormbound", cx, cy)) {
+    ctx.save()
     ctx.globalAlpha = (1 - t) * 0.7
     ctx.strokeStyle = "#a0e0ff"
     ctx.lineWidth = 1.5
@@ -702,7 +776,6 @@ function drawSlash(ctx: Ctx, s: GameState, ch: Character): void {
       const ey = cy + Math.sin(a) * radius
       ctx.beginPath()
       ctx.moveTo(cx, cy)
-      // 2 quick zig-zag joints
       ctx.lineTo(
         cx + (ex - cx) * 0.4 + (Math.random() - 0.5) * 6,
         cy + (ey - cy) * 0.4 + (Math.random() - 0.5) * 6,
@@ -714,19 +787,20 @@ function drawSlash(ctx: Ctx, s: GameState, ch: Character): void {
       ctx.lineTo(ex, ey)
       ctx.stroke()
     }
+    ctx.restore()
   }
-  ctx.restore()
 }
 
 // Passive aura — drawn under the player so it reads as ambient. Only
-// stormbound has an aura right now; other passive auras can be slotted in
-// alongside.
+// stormbound has a passive ring right now. Sprite slot aura_stormbound
+// takes priority.
 function drawAuras(ctx: Ctx, s: GameState): void {
   const mods = s.activeMods
   if (!mods.includes("stormbound")) return
   const p = s.p
   const cx = p.x + PLAYER_WIDTH / 2
   const cy = p.y + PLAYER_HEIGHT / 2
+  if (tryDrawSprite(ctx, "aura_stormbound", cx, cy)) return
   const pulse = 0.5 + Math.sin(s.time * 0.01) * 0.1
   ctx.save()
   ctx.globalAlpha = 0.18 * pulse
@@ -754,7 +828,10 @@ function drawPlayer(ctx: Ctx, s: GameState, ch: Character): void {
     return
   }
   const sq = p.squash
-  const bodyH = PLAYER_HEIGHT * sq,
+  // Visual scale decoupled from hitbox — bodyH drives all body part offsets,
+  // so a single multiplier here lengthens the silhouette without changing
+  // collision. 1.3 reads "stocky humanoid" instead of the previous "stubby".
+  const bodyH = PLAYER_HEIGHT * sq * 1.3,
     bodyW = PLAYER_WIDTH * (2 - sq)
   const moving = Math.abs(p.vx) > 0.5 && p.onGround
   const swing = Math.sin(p.anim * 4) * (moving ? 1 : 0)

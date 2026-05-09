@@ -104,6 +104,8 @@ export default function App() {
   hudRef.current = hud
   const pausedRef = useRef<boolean>(paused)
   pausedRef.current = paused
+  const showInvRef = useRef<boolean>(false)
+  showInvRef.current = showInv
 
   useEffect(() => {
     setMutedAudio(muted)
@@ -149,8 +151,13 @@ export default function App() {
         })
         return { ...h, xp, level: lvl }
       })
+      // a9 — Climbing the Ladder fires the moment level reaches 5. We re-read
+      // hudRef on the next microtask so the setHud above has committed.
+      queueMicrotask(() => {
+        if (hudRef.current.level >= 5) grantAch("a9")
+      })
     },
-    [pushNotif],
+    [pushNotif, grantAch],
   )
 
   const discover = useCallback(
@@ -161,8 +168,14 @@ export default function App() {
       setZoneBanner({ name: z.name, t: performance.now() })
       grantXP(z.xp, "discovery")
       playSnd("discover")
+      // Discovery achievement chain: 3 zones = Wayfarer, all = Cartographer.
+      // hudRef updates synchronously via the inline mutation in render, but
+      // we just called setHud — so check the projected length instead.
+      const next = hudRef.current.discovered.length + 1
+      if (next >= 3) grantAch("a4")
+      if (next >= ZONES.length) grantAch("a5")
     },
-    [grantXP],
+    [grantXP, grantAch],
   )
 
   const transitionToDelve = useCallback(
@@ -586,6 +599,12 @@ export default function App() {
         inp.dash = true
       }
       if (k === "e" || k === "enter") {
+        // E acts as a toggle when a dialog is open: pressing again closes
+        // it instead of stacking another open via the next NPC overlap.
+        if (dialogRef.current !== null) {
+          setDialogNpc(null)
+          return
+        }
         if (!inp.interact) inp.interactEdge = true
         inp.interact = true
       }
@@ -598,7 +617,21 @@ export default function App() {
         e.preventDefault()
         setShowInv((v) => !v)
       }
-      if (k === "escape" || k === "p") setPaused((v) => !v)
+      // Esc cascades through open overlays before exiting to menu.
+      // Order: dialog → inventory → pause overlay → main menu.
+      if (k === "escape") {
+        if (dialogRef.current !== null) {
+          setDialogNpc(null)
+        } else if (showInvRef.current) {
+          setShowInv(false)
+        } else if (pausedRef.current) {
+          setPaused(false)
+          setScene("menu")
+        } else {
+          setScene("menu")
+        }
+      }
+      if (k === "p") setPaused((v) => !v)
       if (k === "m") setMuted((v) => !v)
       if (["arrowup", "arrowdown", "arrowleft", "arrowright", " "].includes(k)) e.preventDefault()
     }

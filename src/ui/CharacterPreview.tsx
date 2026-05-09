@@ -21,7 +21,9 @@ export default function CharacterPreview({ ch }: CharacterPreviewProps) {
       const bob = Math.sin(t * 0.05) * 2
       ctx.save()
       ctx.translate(cx, by + bob)
-      ctx.scale(2.2, 2.2)
+      // Match the in-game body scale (1.3 height multiplier baked into the
+      // base 2.2 scale) so the preview matches what the player sees.
+      ctx.scale(2.2, 2.2 * 1.15)
       ctx.fillStyle = "rgba(0,0,0,0.3)"
       ctx.beginPath()
       ctx.ellipse(0, 2, 12, 3, 0, 0, Math.PI * 2)
