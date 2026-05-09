@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import { useAccount } from "@/auth/account-context"
 import { api, ApiError } from "@/net/api"
 import { fetchManifest, getSave, persistManifest, setSave } from "@/game/save"
@@ -182,5 +182,13 @@ export function useSync(): { state: SyncState; actions: SyncActions } {
     }
   }, [account.status, pullManifest])
 
-  return { state, actions: { pullManifest, resolveConflict, pushSave, deleteRemote, pushSettings, pullSettings } }
+  // Memo the actions bag so its identity is stable across renders. Without
+  // this, a fresh object literal here changes referential equality every
+  // render, which propagates into consumer useEffect dep arrays and triggers
+  // a feedback loop (autosave-tick effect re-fires on every pushSave).
+  const actions = useMemo(
+    () => ({ pullManifest, resolveConflict, pushSave, deleteRemote, pushSettings, pullSettings }),
+    [pullManifest, resolveConflict, pushSave, deleteRemote, pushSettings, pullSettings],
+  )
+  return { state, actions }
 }
