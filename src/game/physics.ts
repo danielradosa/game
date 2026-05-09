@@ -90,6 +90,18 @@ export function addParticles(
   }
 }
 
+// Shared collected-key formatter — physics WRITES, render READS. Keep both
+// paths going through this helper or you get the bug where collected cells
+// keep rendering forever (and can't be re-picked because they're already in
+// the set). Delve cells namespace by activePortalId so two portals with cells
+// at the same tile coords don't collide on a flat "delve:5,17" key.
+export function cellKey(s: GameState, tx: number, ty: number): string {
+  if (s.current === "delve" && s.activePortalId !== null) {
+    return `delve:${s.activePortalId}:${tx},${ty}`
+  }
+  return `${s.current}:${tx},${ty}`
+}
+
 export function spawnEnemiesFrom(
   spawns: readonly EnemySpawn[],
   defeated: ReadonlySet<number>,
@@ -506,12 +518,7 @@ export function stepGame(
       for (let tx = left; tx <= right; tx++) {
         const c = map[ty]?.[tx]
         if (c !== "c" && c !== "C") continue
-        // Namespace delve cells by active portal so two portals can't collide
-        // on a tx,ty key (they share the "delve" scene). Overworld stays flat.
-        const key =
-          s.current === "delve" && s.activePortalId !== null
-            ? `delve:${s.activePortalId}:${tx},${ty}`
-            : `${s.current}:${tx},${ty}`
+        const key = cellKey(s, tx, ty)
         if (s.collected.has(key)) continue
         const stx = tx * TILE_SIZE + TILE_SIZE / 2
         const sty = ty * TILE_SIZE + TILE_SIZE / 2

@@ -8,6 +8,7 @@ import {
   ENEMY_HEIGHT,
   SLASH_FRAMES,
 } from "@/game/constants"
+import { cellKey } from "@/game/physics"
 import { ASSET_SIZES, SPRITES, isReady, tryDrawSprite } from "@/game/sprites"
 import type { Character, GameState, Theme, TileChar } from "@/game/types/physics"
 
@@ -255,7 +256,7 @@ function drawEntities(ctx: Ctx, s: GameState): void {
       const c = map[ty]?.[tx],
         x = tx * TILE_SIZE,
         y = ty * TILE_SIZE,
-        key = s.current + ":" + tx + "," + ty
+        key = cellKey(s, tx, ty)
       if (c === "c" && !s.collected.has(key)) {
         const bob = Math.sin(s.time * 0.005 + tx) * 4
         const cx = x + TILE_SIZE / 2,

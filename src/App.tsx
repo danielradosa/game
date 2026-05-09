@@ -57,8 +57,8 @@ export default function App() {
     discovered: [],
     achievements: [],
     inDelve: false,
-    hasSword: false,
-    questStage: "intro",
+    hasSword: true,
+    questStage: "done",
     mods: [],
   })
   const [hp, setHp] = useState<number>(PLAYER_MAX_HP)
@@ -393,8 +393,11 @@ export default function App() {
       discovered: [],
       achievements: [],
       inDelve: false,
-      hasSword: false,
-      questStage: "intro",
+      // Sword is default-on now: the prior quest-gate friction-locked combat
+      // for new players who walked past the Elder. The forge dialog still
+      // exists at questStage "done" — Elder opens straight to crafting mods.
+      hasSword: true,
+      questStage: "done",
       mods: [],
     })
     setHp(PLAYER_MAX_HP)
