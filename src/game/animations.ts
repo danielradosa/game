@@ -45,10 +45,12 @@ export function selectEnemyAnim(e: Enemy): string {
       if (e.windup > 0) return "windup"
       return "idle"
     case "spitter":
-      // Last 12 ticks of fireCool is the visible wind-up before a shot.
-      // 0 means "shot fired this frame, cooldown reset" — also use fire anim.
-      if (e.fireCool === 0 || e.fireCool > 78) return "idle"
+      // Spitter fireCool counts down from fireInterval (90) to 0; physics
+      // fires + resets at 0. The last 12 ticks (fireCool 0..11) are the
+      // visible wind-up; the first 12 ticks after firing (fireCool 79..90)
+      // are the post-fire rest. Everything else is idle drift.
       if (e.fireCool < 12) return "fire"
+      if (e.fireCool > 78) return "idle"
       return "idle"
     case "burrower":
       if (e.diveTime > 0) return "dive"
