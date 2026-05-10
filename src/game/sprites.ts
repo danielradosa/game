@@ -95,9 +95,9 @@ export function tryDrawSprite(
   return true
 }
 
-import tileGroundSrc from "@/assets/tile_ground.webp"
-import tileGrassSrc from "@/assets/tile_grass.webp"
-import tilePlatformSrc from "@/assets/tile_platform.webp"
+import tileGroundSrc from "@/assets/sprites/tile_ground.webp"
+import tileGrassSrc from "@/assets/sprites/tile_grass.webp"
+import tilePlatformSrc from "@/assets/sprites/tile_platform.webp"
 
 SPRITES.tile_ground = loadSprite(tileGroundSrc)
 SPRITES.tile_grass = loadSprite(tileGrassSrc)
