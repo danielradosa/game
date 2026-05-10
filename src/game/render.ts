@@ -9,7 +9,15 @@ import {
   SLASH_FRAMES,
 } from "@/game/constants"
 import { cellKey } from "@/game/physics"
-import { ASSET_SIZES, SPRITES, isReady, tryDrawSprite } from "@/game/sprites"
+import {
+  SPRITES,
+  SPRITE_REGISTRY,
+  isReady,
+  tryDrawAnimated,
+  tryDrawSprite,
+  type SpriteName,
+} from "@/game/sprites"
+import { selectEnemyAnim, selectPlayerAnim } from "@/game/animations"
 import type { Character, GameState, PlayerState, Theme, TileChar } from "@/game/types/physics"
 
 type Ctx = CanvasRenderingContext2D
@@ -378,7 +386,7 @@ function drawEntities(ctx: Ctx, s: GameState): void {
         ctx.fillStyle = tier > 0 ? "rgba(255,160,160,0.95)" : "rgba(255,255,255,0.85)"
         ctx.font = "12px sans-serif"
         ctx.textAlign = "center"
-        ctx.fillText(tier > 0 ? "[E] Hardmode Delve" : "[E] Enter Delve", cx, y - 8)
+        ctx.fillText(tier > 0 ? "[E] Hardmode Wild" : "[E] Enter Wild", cx, y - 8)
       } else if (c === "r") {
         const cx = x + TILE_SIZE / 2,
           by = y + TILE_SIZE
@@ -536,26 +544,29 @@ function drawEnemies(ctx: Ctx, s: GameState): void {
     const cy = e.y + eH / 2 + Math.sin(e.bob) * 3
     const flash = e.iframes > 0 && (e.iframes & 2) === 0
 
-    // Sprite path for each archetype — sprite takes priority over the
-    // procedural body draw. Skip for diving burrowers (mound view below).
-    if (
-      !(e.type === "burrower" && e.diveTime > 0) &&
-      tryDrawSprite(
+    // Sprite path for each archetype — animated sheet takes priority over
+    // the procedural body draw. Skip for diving burrowers (mound view runs
+    // in the procedural block below).
+    const slotName = (`enemy_${e.type}`) as SpriteName
+    const isDiving = e.type === "burrower" && e.diveTime > 0
+    let bodyHandled = false
+    if (!isDiving && isReady(SPRITES[slotName])) {
+      ctx.save()
+      ctx.translate(Math.round(cx), Math.round(cy))
+      ctx.scale(e.facing, 1)
+      bodyHandled = tryDrawAnimated(
         ctx,
-        e.type === "ghost"
-          ? "enemy_ghost"
-          : e.type === "slammer"
-            ? "enemy_slammer"
-            : e.type === "spitter"
-              ? "enemy_spitter"
-              : "enemy_burrower",
-        cx,
-        cy,
+        slotName,
+        0,
+        0,
+        selectEnemyAnim(e),
+        s.time,
+        false, // ctx.scale already applied; don't double-flip
       )
-    ) {
-      // Sprite handled the body. Continue past procedural bodies, but still
-      // run chill overlay + HP pip below.
-    } else if (e.type === "ghost") {
+      ctx.restore()
+    }
+    if (!bodyHandled) {
+      if (e.type === "ghost") {
       ctx.globalAlpha = 0.25
       ctx.fillStyle = "#5a3a8a"
       ctx.beginPath()
@@ -692,6 +703,7 @@ function drawEnemies(ctx: Ctx, s: GameState): void {
       ctx.arc(cx + e.facing * 3, cy - 2, 1.5, 0, Math.PI * 2)
       ctx.fill()
     }
+    } // end if (!bodyHandled)
 
     // Glacial chill overlay — sprite slot first, then procedural blue tint.
     if (e.chillTime > 0 && !tryDrawSprite(ctx, "aura_glacial", cx, cy)) {
@@ -1037,24 +1049,23 @@ function drawPlayer(ctx: Ctx, s: GameState, ch: Character): void {
   const p = s.p
   const cx = p.x + PLAYER_WIDTH / 2,
     by = p.y + PLAYER_HEIGHT
+  // Animated path — picks the current animation from physics state, falls
+  // through to the procedural draw if the sheet isn't loaded.
   if (isReady(SPRITES.player)) {
+    const anim = selectPlayerAnim(p)
     ctx.save()
     ctx.translate(Math.round(cx), Math.round(by))
     ctx.scale(p.facing, 1)
-    const spec = ASSET_SIZES.player
-    ctx.drawImage(SPRITES.player, -spec.w / 2, -spec.h, spec.w, spec.h)
-    // Sword sits on top of the sprite so the slash visual remains data-driven
-    // even when a custom player sprite is loaded.
+    // Pass mirror=false because we already applied scale(p.facing, 1) above;
+    // tryDrawAnimated would double-flip if we asked it to mirror as well.
+    tryDrawAnimated(ctx, "player", 0, 0, anim, s.time, false)
     if (s.activeHasSword) {
-      // Approximate hip position relative to ASSET_SIZES.player (drawn from
-      // bottom-center). spec.h/2 ≈ belt height, spec.w/2 - 2 = right hip.
-      // Sprite-path anchor uses ASSET_SIZES dimensions (no squash). When a
-      // player sprite is wired, the sword's hip placement will be static
-      // rather than tracking the body's squash anim — by design, since the
-      // sprite frame itself shouldn't be re-deformed by squash. Procedural
-      // path below uses bodyW/bodyH so the sword bobs with the body.
-      const hipX = spec.w / 2 - 2
-      const hipY = -spec.h * 0.5
+      // Hip approximation against the player frame size — read from the
+      // registry so changing player frameW/frameH only updates one place.
+      // player is kind:"sheet" so frameW/frameH are directly available.
+      const spec = SPRITE_REGISTRY.player
+      const hipX = spec.frameW / 2 - 2
+      const hipY = -spec.frameH * 0.5
       drawSword(ctx, hipX, hipY, s.activeWeaponLevel, slashProgress(p))
     }
     ctx.restore()

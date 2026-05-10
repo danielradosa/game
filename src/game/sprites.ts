@@ -17,8 +17,20 @@ export const SPRITE_REGISTRY = {
   tile_ground_delve:   { kind: "static", w: 36, h: 36, anchor: "top-left" },
   tile_platform_delve: { kind: "static", w: 36, h: 12, anchor: "top-left" },
 
-  // --- Player (kind switches to "sheet" in Task 6) ---
-  player:              { kind: "static", w: 48, h: 64, anchor: "bottom-center" },
+  // --- Player (sheet) ---
+  player: {
+    kind: "sheet",
+    frameW: 48, frameH: 64, anchor: "bottom-center",
+    animations: {
+      idle:  { row: 0, frames: 4, fps: 6,  loop: true  },
+      run:   { row: 1, frames: 4, fps: 12, loop: true  },
+      jump:  { row: 2, frames: 2, fps: 8,  loop: false },
+      fall:  { row: 3, frames: 2, fps: 8,  loop: false },
+      dash:  { row: 4, frames: 2, fps: 18, loop: false },
+      slash: { row: 5, frames: 4, fps: 24, loop: false },
+      hurt:  { row: 6, frames: 2, fps: 8,  loop: false },
+    },
+  },
 
   // --- Pickups ---
   collectible:         { kind: "static", w: 24, h: 24, anchor: "center" },
@@ -35,11 +47,43 @@ export const SPRITE_REGISTRY = {
   npc_merchant:        { kind: "static", w: 36, h: 64, anchor: "bottom-center" },
   npc:                 { kind: "static", w: 36, h: 64, anchor: "bottom-center" },
 
-  // --- Enemies (kind switches to "sheet" in Task 6) ---
-  enemy_ghost:         { kind: "static", w: 30, h: 30, anchor: "center" },
-  enemy_slammer:       { kind: "static", w: 40, h: 40, anchor: "center" },
-  enemy_spitter:       { kind: "static", w: 26, h: 26, anchor: "center" },
-  enemy_burrower:      { kind: "static", w: 36, h: 32, anchor: "bottom-center" },
+  // --- Enemies (all sheet) ---
+  enemy_ghost: {
+    kind: "sheet",
+    frameW: 30, frameH: 30, anchor: "center",
+    animations: {
+      idle: { row: 0, frames: 4, fps: 6,  loop: true  },
+      hurt: { row: 1, frames: 2, fps: 12, loop: false },
+    },
+  },
+  enemy_slammer: {
+    kind: "sheet",
+    frameW: 40, frameH: 40, anchor: "center",
+    animations: {
+      idle:   { row: 0, frames: 4, fps: 6,  loop: true  },
+      windup: { row: 1, frames: 4, fps: 8,  loop: false },
+      lunge:  { row: 2, frames: 2, fps: 16, loop: false },
+      hurt:   { row: 3, frames: 2, fps: 12, loop: false },
+    },
+  },
+  enemy_spitter: {
+    kind: "sheet",
+    frameW: 26, frameH: 26, anchor: "center",
+    animations: {
+      idle: { row: 0, frames: 4, fps: 6,  loop: true  },
+      fire: { row: 1, frames: 3, fps: 12, loop: false },
+      hurt: { row: 2, frames: 2, fps: 12, loop: false },
+    },
+  },
+  enemy_burrower: {
+    kind: "sheet",
+    frameW: 36, frameH: 32, anchor: "bottom-center",
+    animations: {
+      idle: { row: 0, frames: 4, fps: 6,  loop: true  },
+      dive: { row: 1, frames: 3, fps: 12, loop: false },
+      hurt: { row: 2, frames: 2, fps: 12, loop: false },
+    },
+  },
 
   // --- Projectiles & weapons ---
   projectile:          { kind: "static", w: 18, h: 18, anchor: "center" },
