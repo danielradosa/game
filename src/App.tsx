@@ -1264,6 +1264,12 @@ function AppContents() {
           width={VIEWPORT_WIDTH}
           height={VIEWPORT_HEIGHT}
           className="block shadow-2xl"
+          // Force nearest-neighbor when the browser CSS-scales the
+          // backbuffer to display dimensions. Without this, bilinear
+          // filtering at the CSS layer fades tile edges to transparent
+          // and adjacent tiles appear to have hairline gaps — independent
+          // of the canvas-side ctx.imageSmoothingEnabled flag.
+          style={{ imageRendering: "pixelated" }}
         />
         <div className="absolute top-3 left-3 flex items-center gap-3 pointer-events-none">
           <div className="bg-black/40 backdrop-blur rounded-lg px-3 py-2 text-white text-sm">
