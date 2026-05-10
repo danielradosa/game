@@ -547,7 +547,7 @@ function drawEnemies(ctx: Ctx, s: GameState): void {
     // Sprite path for each archetype — animated sheet takes priority over
     // the procedural body draw. Skip for diving burrowers (mound view runs
     // in the procedural block below).
-    const slotName = (`enemy_${e.type}`) as SpriteName
+    const slotName = `enemy_${e.type}` as SpriteName
     const isDiving = e.type === "burrower" && e.diveTime > 0
     let bodyHandled = false
     if (!isDiving && isReady(SPRITES[slotName])) {
@@ -567,142 +567,142 @@ function drawEnemies(ctx: Ctx, s: GameState): void {
     }
     if (!bodyHandled) {
       if (e.type === "ghost") {
-      ctx.globalAlpha = 0.25
-      ctx.fillStyle = "#5a3a8a"
-      ctx.beginPath()
-      ctx.ellipse(cx, cy + 8, eW * 0.6, 5, 0, 0, Math.PI * 2)
-      ctx.fill()
-      ctx.globalAlpha = 0.92
-      ctx.fillStyle = flash ? "#ffffff" : "#9a6ad8"
-      ctx.beginPath()
-      ctx.arc(cx, cy, eW / 2, 0, Math.PI * 2)
-      ctx.fill()
-      ctx.globalAlpha = 1
-      ctx.fillStyle = flash ? "#9a6ad8" : "#1a0a2a"
-      const ex = e.facing > 0 ? 3 : -3
-      ctx.beginPath()
-      ctx.arc(cx - 4 + ex, cy - 2, 2, 0, Math.PI * 2)
-      ctx.arc(cx + 4 + ex, cy - 2, 2, 0, Math.PI * 2)
-      ctx.fill()
-    } else if (e.type === "slammer") {
-      // Stout, armored body. Windup turns the body red as a tell; lunge
-      // streaks the silhouette. Eye row is angry.
-      const winduping = e.windup > 0
-      const lunging = e.lunging > 0
-      ctx.globalAlpha = 0.3
-      ctx.fillStyle = "#3a1a1a"
-      ctx.beginPath()
-      ctx.ellipse(cx, cy + 12, eW * 0.55, 6, 0, 0, Math.PI * 2)
-      ctx.fill()
-      ctx.globalAlpha = 0.95
-      const baseColor = flash ? "#ffffff" : winduping ? "#e84040" : "#a83030"
-      ctx.fillStyle = baseColor
-      // Slightly hexagonal body
-      ctx.beginPath()
-      ctx.moveTo(cx - eW * 0.45, cy)
-      ctx.lineTo(cx - eW * 0.3, cy - eH * 0.42)
-      ctx.lineTo(cx + eW * 0.3, cy - eH * 0.42)
-      ctx.lineTo(cx + eW * 0.45, cy)
-      ctx.lineTo(cx + eW * 0.3, cy + eH * 0.42)
-      ctx.lineTo(cx - eW * 0.3, cy + eH * 0.42)
-      ctx.closePath()
-      ctx.fill()
-      // Plate seam
-      ctx.fillStyle = "#5a1010"
-      ctx.fillRect(cx - eW * 0.4, cy - 1, eW * 0.8, 2)
-      // Eyes
-      ctx.fillStyle = winduping || lunging ? "#fff200" : "#ffe060"
-      ctx.fillRect(cx - 8, cy - 6, 4, 3)
-      ctx.fillRect(cx + 4, cy - 6, 4, 3)
-      // Windup tell — a circle pulse around the body
-      if (winduping) {
-        const stats2 = ENEMY_STATS.slammer
-        const t = 1 - e.windup / stats2.windupFrames
-        ctx.globalAlpha = 0.5 * (1 - t)
-        ctx.strokeStyle = "#ff5040"
-        ctx.lineWidth = 3
+        ctx.globalAlpha = 0.25
+        ctx.fillStyle = "#5a3a8a"
         ctx.beginPath()
-        ctx.arc(cx, cy, eW * 0.5 + t * 28, 0, Math.PI * 2)
-        ctx.stroke()
-      }
-    } else if (e.type === "burrower") {
-      // Two visual modes: above-ground claw beast, or moving dirt mound at
-      // floor level when diveTime > 0.
-      if (e.diveTime > 0) {
-        // Mound — y reads the spawn surface (we kept e.y at surface even
-        // while burrowing, since gameplay only needs the x to follow).
-        const mx = cx
-        const my = e.y + eH - 4
-        ctx.globalAlpha = 0.95
-        ctx.fillStyle = "#5a3820"
-        ctx.beginPath()
-        ctx.ellipse(mx, my + 2, 18, 9, 0, 0, Math.PI * 2)
+        ctx.ellipse(cx, cy + 8, eW * 0.6, 5, 0, 0, Math.PI * 2)
         ctx.fill()
-        ctx.fillStyle = "#7a5030"
+        ctx.globalAlpha = 0.92
+        ctx.fillStyle = flash ? "#ffffff" : "#9a6ad8"
         ctx.beginPath()
-        ctx.ellipse(mx, my, 14, 6, 0, 0, Math.PI * 2)
+        ctx.arc(cx, cy, eW / 2, 0, Math.PI * 2)
         ctx.fill()
-        // Tail of dust trailing behind motion direction.
-        ctx.fillStyle = "rgba(140,90,50,0.5)"
+        ctx.globalAlpha = 1
+        ctx.fillStyle = flash ? "#9a6ad8" : "#1a0a2a"
+        const ex = e.facing > 0 ? 3 : -3
         ctx.beginPath()
-        ctx.ellipse(mx - e.facing * 14, my + 4, 6, 3, 0, 0, Math.PI * 2)
+        ctx.arc(cx - 4 + ex, cy - 2, 2, 0, Math.PI * 2)
+        ctx.arc(cx + 4 + ex, cy - 2, 2, 0, Math.PI * 2)
         ctx.fill()
-      } else {
-        // Above-ground: claw beast — wider stance, prominent tusks.
+      } else if (e.type === "slammer") {
+        // Stout, armored body. Windup turns the body red as a tell; lunge
+        // streaks the silhouette. Eye row is angry.
+        const winduping = e.windup > 0
+        const lunging = e.lunging > 0
         ctx.globalAlpha = 0.3
-        ctx.fillStyle = "#3a2a1a"
+        ctx.fillStyle = "#3a1a1a"
         ctx.beginPath()
-        ctx.ellipse(cx, cy + 10, eW * 0.6, 5, 0, 0, Math.PI * 2)
+        ctx.ellipse(cx, cy + 12, eW * 0.55, 6, 0, 0, Math.PI * 2)
         ctx.fill()
         ctx.globalAlpha = 0.95
-        ctx.fillStyle = flash ? "#ffffff" : "#8a5a30"
-        // Trapezoidal body
+        const baseColor = flash ? "#ffffff" : winduping ? "#e84040" : "#a83030"
+        ctx.fillStyle = baseColor
+        // Slightly hexagonal body
         ctx.beginPath()
-        ctx.moveTo(cx - eW * 0.45, cy + eH * 0.42)
-        ctx.lineTo(cx - eW * 0.32, cy - eH * 0.4)
-        ctx.lineTo(cx + eW * 0.32, cy - eH * 0.4)
-        ctx.lineTo(cx + eW * 0.45, cy + eH * 0.42)
+        ctx.moveTo(cx - eW * 0.45, cy)
+        ctx.lineTo(cx - eW * 0.3, cy - eH * 0.42)
+        ctx.lineTo(cx + eW * 0.3, cy - eH * 0.42)
+        ctx.lineTo(cx + eW * 0.45, cy)
+        ctx.lineTo(cx + eW * 0.3, cy + eH * 0.42)
+        ctx.lineTo(cx - eW * 0.3, cy + eH * 0.42)
         ctx.closePath()
         ctx.fill()
-        // Tusks
-        ctx.fillStyle = "#e0d0a0"
-        ctx.fillRect(cx - 8, cy + 2, 3, 7)
-        ctx.fillRect(cx + 5, cy + 2, 3, 7)
-        // Eyes — beady red
-        ctx.fillStyle = flash ? "#3a2a1a" : "#ff4040"
-        ctx.fillRect(cx - 7, cy - 6, 3, 3)
-        ctx.fillRect(cx + 4, cy - 6, 3, 3)
+        // Plate seam
+        ctx.fillStyle = "#5a1010"
+        ctx.fillRect(cx - eW * 0.4, cy - 1, eW * 0.8, 2)
+        // Eyes
+        ctx.fillStyle = winduping || lunging ? "#fff200" : "#ffe060"
+        ctx.fillRect(cx - 8, cy - 6, 4, 3)
+        ctx.fillRect(cx + 4, cy - 6, 4, 3)
+        // Windup tell — a circle pulse around the body
+        if (winduping) {
+          const stats2 = ENEMY_STATS.slammer
+          const t = 1 - e.windup / stats2.windupFrames
+          ctx.globalAlpha = 0.5 * (1 - t)
+          ctx.strokeStyle = "#ff5040"
+          ctx.lineWidth = 3
+          ctx.beginPath()
+          ctx.arc(cx, cy, eW * 0.5 + t * 28, 0, Math.PI * 2)
+          ctx.stroke()
+        }
+      } else if (e.type === "burrower") {
+        // Two visual modes: above-ground claw beast, or moving dirt mound at
+        // floor level when diveTime > 0.
+        if (e.diveTime > 0) {
+          // Mound — y reads the spawn surface (we kept e.y at surface even
+          // while burrowing, since gameplay only needs the x to follow).
+          const mx = cx
+          const my = e.y + eH - 4
+          ctx.globalAlpha = 0.95
+          ctx.fillStyle = "#5a3820"
+          ctx.beginPath()
+          ctx.ellipse(mx, my + 2, 18, 9, 0, 0, Math.PI * 2)
+          ctx.fill()
+          ctx.fillStyle = "#7a5030"
+          ctx.beginPath()
+          ctx.ellipse(mx, my, 14, 6, 0, 0, Math.PI * 2)
+          ctx.fill()
+          // Tail of dust trailing behind motion direction.
+          ctx.fillStyle = "rgba(140,90,50,0.5)"
+          ctx.beginPath()
+          ctx.ellipse(mx - e.facing * 14, my + 4, 6, 3, 0, 0, Math.PI * 2)
+          ctx.fill()
+        } else {
+          // Above-ground: claw beast — wider stance, prominent tusks.
+          ctx.globalAlpha = 0.3
+          ctx.fillStyle = "#3a2a1a"
+          ctx.beginPath()
+          ctx.ellipse(cx, cy + 10, eW * 0.6, 5, 0, 0, Math.PI * 2)
+          ctx.fill()
+          ctx.globalAlpha = 0.95
+          ctx.fillStyle = flash ? "#ffffff" : "#8a5a30"
+          // Trapezoidal body
+          ctx.beginPath()
+          ctx.moveTo(cx - eW * 0.45, cy + eH * 0.42)
+          ctx.lineTo(cx - eW * 0.32, cy - eH * 0.4)
+          ctx.lineTo(cx + eW * 0.32, cy - eH * 0.4)
+          ctx.lineTo(cx + eW * 0.45, cy + eH * 0.42)
+          ctx.closePath()
+          ctx.fill()
+          // Tusks
+          ctx.fillStyle = "#e0d0a0"
+          ctx.fillRect(cx - 8, cy + 2, 3, 7)
+          ctx.fillRect(cx + 5, cy + 2, 3, 7)
+          // Eyes — beady red
+          ctx.fillStyle = flash ? "#3a2a1a" : "#ff4040"
+          ctx.fillRect(cx - 7, cy - 6, 3, 3)
+          ctx.fillRect(cx + 4, cy - 6, 3, 3)
+        }
+      } else if (e.type === "spitter") {
+        // Small floating orb-like creature with a single glowing eye that
+        // brightens as it's about to fire.
+        const stats3 = ENEMY_STATS.spitter
+        const charging = e.fireCool < 20
+        ctx.globalAlpha = 0.25
+        ctx.fillStyle = "#2a1a3a"
+        ctx.beginPath()
+        ctx.ellipse(cx, cy + 6, eW * 0.45, 4, 0, 0, Math.PI * 2)
+        ctx.fill()
+        ctx.globalAlpha = 0.95
+        ctx.fillStyle = flash ? "#ffffff" : "#5a30a0"
+        ctx.beginPath()
+        ctx.arc(cx, cy, eW / 2, 0, Math.PI * 2)
+        ctx.fill()
+        // Single big eye, color shifts as fire approaches
+        const eyeColor = charging
+          ? "#ff80ff"
+          : e.fireCool < stats3.fireInterval / 2
+            ? "#c060ff"
+            : "#a060e0"
+        ctx.fillStyle = eyeColor
+        ctx.beginPath()
+        ctx.arc(cx + e.facing * 2, cy - 2, 4, 0, Math.PI * 2)
+        ctx.fill()
+        ctx.fillStyle = "#1a0a2a"
+        ctx.beginPath()
+        ctx.arc(cx + e.facing * 3, cy - 2, 1.5, 0, Math.PI * 2)
+        ctx.fill()
       }
-    } else if (e.type === "spitter") {
-      // Small floating orb-like creature with a single glowing eye that
-      // brightens as it's about to fire.
-      const stats3 = ENEMY_STATS.spitter
-      const charging = e.fireCool < 20
-      ctx.globalAlpha = 0.25
-      ctx.fillStyle = "#2a1a3a"
-      ctx.beginPath()
-      ctx.ellipse(cx, cy + 6, eW * 0.45, 4, 0, 0, Math.PI * 2)
-      ctx.fill()
-      ctx.globalAlpha = 0.95
-      ctx.fillStyle = flash ? "#ffffff" : "#5a30a0"
-      ctx.beginPath()
-      ctx.arc(cx, cy, eW / 2, 0, Math.PI * 2)
-      ctx.fill()
-      // Single big eye, color shifts as fire approaches
-      const eyeColor = charging
-        ? "#ff80ff"
-        : e.fireCool < stats3.fireInterval / 2
-          ? "#c060ff"
-          : "#a060e0"
-      ctx.fillStyle = eyeColor
-      ctx.beginPath()
-      ctx.arc(cx + e.facing * 2, cy - 2, 4, 0, Math.PI * 2)
-      ctx.fill()
-      ctx.fillStyle = "#1a0a2a"
-      ctx.beginPath()
-      ctx.arc(cx + e.facing * 3, cy - 2, 1.5, 0, Math.PI * 2)
-      ctx.fill()
-    }
     } // end if (!bodyHandled)
 
     // Glacial chill overlay — sprite slot first, then procedural blue tint.

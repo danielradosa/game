@@ -8,12 +8,7 @@ import type { Enemy, PlayerState } from "@/game/types/physics"
 // modulo frame count. For loop=false, clamps to the last frame so the
 // renderer holds the final pose until the caller switches to a different
 // animation (e.g. slashFrames hits 0 → selectPlayerAnim picks "idle").
-export function frameIndex(
-  frames: number,
-  fps: number,
-  loop: boolean,
-  time: number,
-): number {
+export function frameIndex(frames: number, fps: number, loop: boolean, time: number): number {
   const tick = Math.floor((time * fps) / 60)
   return loop ? ((tick % frames) + frames) % frames : Math.max(0, Math.min(tick, frames - 1))
 }

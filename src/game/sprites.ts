@@ -11,91 +11,101 @@ import { frameIndex } from "@/game/animations"
 // derived from this, so adding a new slot is a one-place edit.
 export const SPRITE_REGISTRY = {
   // --- Tiles (all static one-frame images) ---
-  tile_ground:         { kind: "static", w: 36, h: 36, anchor: "top-left" },
-  tile_grass:          { kind: "static", w: 36, h: 36, anchor: "top-left" },
-  tile_platform:       { kind: "static", w: 36, h: 12, anchor: "top-left" },
-  tile_ground_delve:   { kind: "static", w: 36, h: 36, anchor: "top-left" },
+  tile_ground: { kind: "static", w: 36, h: 36, anchor: "top-left" },
+  tile_grass: { kind: "static", w: 36, h: 36, anchor: "top-left" },
+  tile_platform: { kind: "static", w: 36, h: 12, anchor: "top-left" },
+  tile_ground_delve: { kind: "static", w: 36, h: 36, anchor: "top-left" },
   tile_platform_delve: { kind: "static", w: 36, h: 12, anchor: "top-left" },
 
   // --- Player (sheet) ---
   player: {
     kind: "sheet",
-    frameW: 48, frameH: 64, anchor: "bottom-center",
+    frameW: 48,
+    frameH: 64,
+    anchor: "bottom-center",
     animations: {
-      idle:  { row: 0, frames: 4, fps: 6,  loop: true  },
-      run:   { row: 1, frames: 4, fps: 12, loop: true  },
-      jump:  { row: 2, frames: 2, fps: 8,  loop: false },
-      fall:  { row: 3, frames: 2, fps: 8,  loop: false },
-      dash:  { row: 4, frames: 2, fps: 18, loop: false },
+      idle: { row: 0, frames: 4, fps: 6, loop: true },
+      run: { row: 1, frames: 4, fps: 12, loop: true },
+      jump: { row: 2, frames: 2, fps: 8, loop: false },
+      fall: { row: 3, frames: 2, fps: 8, loop: false },
+      dash: { row: 4, frames: 2, fps: 18, loop: false },
       slash: { row: 5, frames: 4, fps: 24, loop: false },
-      hurt:  { row: 6, frames: 2, fps: 8,  loop: false },
+      hurt: { row: 6, frames: 2, fps: 8, loop: false },
     },
   },
 
   // --- Pickups ---
-  collectible:         { kind: "static", w: 24, h: 24, anchor: "center" },
-  cache:               { kind: "static", w: 40, h: 40, anchor: "center" },
+  collectible: { kind: "static", w: 24, h: 24, anchor: "center" },
+  cache: { kind: "static", w: 40, h: 40, anchor: "center" },
 
   // --- Portals ---
-  portal_delve:        { kind: "static", w: 36, h: 64, anchor: "bottom-center" },
-  portal_delve_hard:   { kind: "static", w: 36, h: 64, anchor: "bottom-center" },
-  portal_destroyed:    { kind: "static", w: 36, h: 36, anchor: "bottom-center" },
-  portal_return:       { kind: "static", w: 36, h: 64, anchor: "bottom-center" },
+  portal_delve: { kind: "static", w: 36, h: 64, anchor: "bottom-center" },
+  portal_delve_hard: { kind: "static", w: 36, h: 64, anchor: "bottom-center" },
+  portal_destroyed: { kind: "static", w: 36, h: 36, anchor: "bottom-center" },
+  portal_return: { kind: "static", w: 36, h: 64, anchor: "bottom-center" },
 
   // --- NPCs ---
-  npc_elder:           { kind: "static", w: 36, h: 64, anchor: "bottom-center" },
-  npc_merchant:        { kind: "static", w: 36, h: 64, anchor: "bottom-center" },
-  npc:                 { kind: "static", w: 36, h: 64, anchor: "bottom-center" },
+  npc_elder: { kind: "static", w: 36, h: 64, anchor: "bottom-center" },
+  npc_merchant: { kind: "static", w: 36, h: 64, anchor: "bottom-center" },
+  npc: { kind: "static", w: 36, h: 64, anchor: "bottom-center" },
 
   // --- Enemies (all sheet) ---
   enemy_ghost: {
     kind: "sheet",
-    frameW: 30, frameH: 30, anchor: "center",
+    frameW: 30,
+    frameH: 30,
+    anchor: "center",
     animations: {
-      idle: { row: 0, frames: 4, fps: 6,  loop: true  },
+      idle: { row: 0, frames: 4, fps: 6, loop: true },
       hurt: { row: 1, frames: 2, fps: 12, loop: false },
     },
   },
   enemy_slammer: {
     kind: "sheet",
-    frameW: 40, frameH: 40, anchor: "center",
+    frameW: 40,
+    frameH: 40,
+    anchor: "center",
     animations: {
-      idle:   { row: 0, frames: 4, fps: 6,  loop: true  },
-      windup: { row: 1, frames: 4, fps: 8,  loop: false },
-      lunge:  { row: 2, frames: 2, fps: 16, loop: false },
-      hurt:   { row: 3, frames: 2, fps: 12, loop: false },
+      idle: { row: 0, frames: 4, fps: 6, loop: true },
+      windup: { row: 1, frames: 4, fps: 8, loop: false },
+      lunge: { row: 2, frames: 2, fps: 16, loop: false },
+      hurt: { row: 3, frames: 2, fps: 12, loop: false },
     },
   },
   enemy_spitter: {
     kind: "sheet",
-    frameW: 26, frameH: 26, anchor: "center",
+    frameW: 26,
+    frameH: 26,
+    anchor: "center",
     animations: {
-      idle: { row: 0, frames: 4, fps: 6,  loop: true  },
+      idle: { row: 0, frames: 4, fps: 6, loop: true },
       fire: { row: 1, frames: 3, fps: 12, loop: false },
       hurt: { row: 2, frames: 2, fps: 12, loop: false },
     },
   },
   enemy_burrower: {
     kind: "sheet",
-    frameW: 36, frameH: 32, anchor: "bottom-center",
+    frameW: 36,
+    frameH: 32,
+    anchor: "bottom-center",
     animations: {
-      idle: { row: 0, frames: 4, fps: 6,  loop: true  },
+      idle: { row: 0, frames: 4, fps: 6, loop: true },
       dive: { row: 1, frames: 3, fps: 12, loop: false },
       hurt: { row: 2, frames: 2, fps: 12, loop: false },
     },
   },
 
   // --- Projectiles & weapons ---
-  projectile:          { kind: "static", w: 18, h: 18, anchor: "center" },
-  weapon_worn:         { kind: "static", w: 64, h: 32, anchor: "center" },
-  weapon_forged:       { kind: "static", w: 64, h: 32, anchor: "center" },
-  weapon_honed:        { kind: "static", w: 64, h: 32, anchor: "center" },
+  projectile: { kind: "static", w: 18, h: 18, anchor: "center" },
+  weapon_worn: { kind: "static", w: 64, h: 32, anchor: "center" },
+  weapon_forged: { kind: "static", w: 64, h: 32, anchor: "center" },
+  weapon_honed: { kind: "static", w: 64, h: 32, anchor: "center" },
 
   // --- Mod auras ---
-  aura_searing:        { kind: "static", w: 64, h: 64, anchor: "center" },
-  aura_stormbound:     { kind: "static", w: 80, h: 80, anchor: "center" },
-  aura_glacial:        { kind: "static", w: 36, h: 36, anchor: "center" },
-  aura_sanguine:       { kind: "static", w: 48, h: 48, anchor: "center" },
+  aura_searing: { kind: "static", w: 64, h: 64, anchor: "center" },
+  aura_stormbound: { kind: "static", w: 80, h: 80, anchor: "center" },
+  aura_glacial: { kind: "static", w: 36, h: 36, anchor: "center" },
+  aura_sanguine: { kind: "static", w: 48, h: 48, anchor: "center" },
 } as const satisfies Record<string, SpriteSpec>
 
 // Derived types — one source of truth.
@@ -235,17 +245,7 @@ export function tryDrawAnimated(
     )
     ctx.restore()
   } else {
-    ctx.drawImage(
-      img,
-      srcX,
-      srcY,
-      frameW,
-      frameH,
-      Math.round(dx),
-      Math.round(dy),
-      frameW,
-      frameH,
-    )
+    ctx.drawImage(img, srcX, srcY, frameW, frameH, Math.round(dx), Math.round(dy), frameW, frameH)
   }
   return true
 }
@@ -260,14 +260,10 @@ export function tryDrawAnimated(
 // Files prefixed with "_" are skipped silently — useful for in-progress
 // drafts you don't want bound yet (e.g. _player_v2.webp).
 
-const webpModules = import.meta.glob<{ default: string }>(
-  "@/assets/sprites/*.webp",
-  { eager: true },
-)
-const pngModules = import.meta.glob<{ default: string }>(
-  "@/assets/sprites/*.png",
-  { eager: true },
-)
+const webpModules = import.meta.glob<{ default: string }>("@/assets/sprites/*.webp", {
+  eager: true,
+})
+const pngModules = import.meta.glob<{ default: string }>("@/assets/sprites/*.png", { eager: true })
 
 function bindSpriteModules(modules: Record<string, { default: string }>): void {
   for (const path in modules) {
