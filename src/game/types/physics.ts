@@ -152,6 +152,11 @@ export interface PlayerState {
   airDashesUsed: number
   aimGlideUsed: boolean
   aimGlideFrames: number
+  // Forgiveness buffer for the dash→glide two-tap. If the player presses dash
+  // a second time while the dash itself is still on cooldown / mid-dash, the
+  // press is captured here and consumed when canStartGlide can fire. Mirrors
+  // jbuf's role for jumps.
+  glideBuf: number
   wallLatched: boolean
   sliding: boolean
   slideFrames: number

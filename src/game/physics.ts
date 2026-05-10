@@ -98,6 +98,10 @@ const ROLL_IFRAMES = 8
 const AIM_GLIDE_DUR = 60 // ~1 second @ 60fps
 const AIM_GLIDE_GRAV = 0.1
 const AIM_GLIDE_MAX = 1.5
+// Window during which a "glide" press registered while dash is still
+// active/cooling will still trigger the glide once conditions clear.
+// 200ms feels generous without making the input mushy.
+const GLIDE_BUFFER_FRAMES = 12
 
 export function addParticles(
   s: GameState,
@@ -412,8 +416,12 @@ export function stepGame(
   if (!justBulletJumped && !inp.jump && p.vy < -3) p.vy *= JUMP_CUT_MULTIPLIER
 
   // ---- dash (ROLL on ground / AIR DASH in air) ----
+  // Tick the glide buffer down regardless of input — it's set below when a
+  // dash press is rejected mid-dash, and consumed in canStartGlide.
+  p.glideBuf = Math.max(0, p.glideBuf - 1)
   if (inp.dashEdge) {
     inp.dashEdge = false
+    let dashStarted = false
     if (p.dashCool <= 0 && p.dashFrames <= 0 && !p.wallLatched) {
       if (p.onGround) {
         // ROLL — short horizontal evasive hop with i-frames
@@ -429,6 +437,7 @@ export function stepGame(
           s.hasDashed = true
           cb.grantAch("a3")
         }
+        dashStarted = true
       } else {
         // AIR DASH — 8-directional, 1 charge per airborne sequence by default;
         // Quickfeet+ perk raises the cap to 2 so the player can chain a second
@@ -456,8 +465,16 @@ export function stepGame(
             cb.grantAch("a3")
           }
           p.aimGlideFrames = 0 // dashing cancels active glide
+          dashStarted = true
         }
       }
+    }
+    // Press in the air that didn't produce a dash (cooldown, mid-dash,
+    // wall-latched, or air dashes spent) is treated as a queued glide
+    // intent. Carries forward via glideBuf so the player can press dash a
+    // second time mid-dash and still reliably catch the glide window.
+    if (!dashStarted && !p.onGround) {
+      p.glideBuf = GLIDE_BUFFER_FRAMES
     }
   }
   if (p.dashCool > 0) p.dashCool--
@@ -541,9 +558,14 @@ export function stepGame(
     p.wallLatched = false
   }
 
-  // ---- aim glide (hold X in air, once per airborne sequence) ----
+  // ---- aim glide (tap dash twice in air to commit; once per airborne seq) ----
+  // Either inp.dash held OR a recently-buffered glide intent (from a dash
+  // press that landed during the cooldown window) starts the glide. Once
+  // committed, the glide runs to its full duration unless cancelled by a
+  // state change — release alone no longer cancels, since players who
+  // tap-tap to dash+glide release the key naturally.
   const canStartGlide =
-    inp.dash &&
+    (inp.dash || p.glideBuf > 0) &&
     !p.onGround &&
     p.dashFrames <= 0 &&
     !p.wallLatched &&
@@ -552,10 +574,11 @@ export function stepGame(
   if (canStartGlide) {
     p.aimGlideFrames = AIM_GLIDE_DUR
     p.aimGlideUsed = true
+    p.glideBuf = 0 // consume the buffered intent
     addParticles(s, p.x + PLAYER_WIDTH / 2, p.y + PLAYER_HEIGHT, 4, ch.accent, 0.8)
   }
   if (p.aimGlideFrames > 0) {
-    if (!inp.dash || p.onGround || p.wallLatched || p.dashFrames > 0 || p.vy < -2) {
+    if (p.onGround || p.wallLatched || p.dashFrames > 0 || p.vy < -2) {
       p.aimGlideFrames = 0 // cancel on land/latch/dash/upward burst
     } else {
       p.aimGlideFrames--
@@ -858,7 +881,7 @@ export function stepGame(
             s.defeatedEnemies.size >= s.dl.enemySpawns.length
           ) {
             s.delveCleared = true
-            cb.notify("Delve cleared — portal unlocked", "discovery")
+            cb.notify("Wild cleared — portal unlocked", "discovery")
             playSnd("portal")
             cb.onDelveClear()
           }
@@ -1103,7 +1126,7 @@ export function stepGame(
           s.defeatedEnemies.size >= s.dl.enemySpawns.length
         ) {
           s.delveCleared = true
-          cb.notify("Delve cleared — portal unlocked", "discovery")
+          cb.notify("Wild cleared — portal unlocked", "discovery")
           playSnd("portal")
           cb.onDelveClear()
         }
@@ -1283,6 +1306,7 @@ export function makeInitialState(
       airDashesUsed: 0,
       aimGlideUsed: false,
       aimGlideFrames: 0,
+      glideBuf: 0,
       wallLatched: false,
       sliding: false,
       slideFrames: 0,

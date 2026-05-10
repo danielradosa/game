@@ -112,7 +112,7 @@ export const ENEMY_STATS = {
 } as const satisfies Record<EnemyType, EnemyStats>
 
 export const ENEMY_HIT_IFRAMES = 14
-export const ENEMY_KNOCKBACK = 4
+export const ENEMY_KNOCKBACK = 3.5
 // Glacial Edge mod chill duration applied on slash hit, in physics ticks.
 export const CHILL_DURATION = 120
 

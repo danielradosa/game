@@ -451,6 +451,15 @@ function AppContents() {
           s.ow.map[ty]![tx] = "X"
         }
         pushNotif("The rift collapses behind you", "discovery")
+        // If this seal closed the last open rift, surface the Rebirth path —
+        // matches the Elder's Rebirth UI gate (every visited portal destroyed),
+        // so the hint never lies about availability.
+        const allSealed = Array.from(s.portals.values()).every(
+          (pp) => pp.status === "destroyed",
+        )
+        if (allSealed) {
+          pushNotif("All rifts sealed — seek the Elder to Rebirth", "discovery")
+        }
       } else {
         portal.seed = freshSeed()
         portal.tier += 1
@@ -1129,7 +1138,7 @@ function AppContents() {
             questStage: h.questStage === "active" ? "cleared" : h.questStage,
           }
         })
-        pushNotif("Delve bounty: +5 essence, +1 crystal", "discovery")
+        pushNotif("Wild bounty: +5 essence, +1 crystal", "discovery")
       },
       getMods: () => hudRef.current.mods,
       hasPerk: (id) => hudRef.current.perks.includes(id),

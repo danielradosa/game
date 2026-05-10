@@ -61,7 +61,7 @@ export const ACHIEVEMENTS = [
   { id: "a5", name: "Cartographer", desc: "Discover every area" },
   { id: "a6", name: "Magpie", desc: "Collect 5 materials" },
   { id: "a7", name: "Threshold", desc: "Step through the Riftgate" },
-  { id: "a8", name: "Summit", desc: "Reach the Delve summit" },
+  { id: "a8", name: "Summit", desc: "Reach the Wild summit" },
   { id: "a9", name: "Climbing the Ladder", desc: "Reach Level 5" },
   { id: "a10", name: "Stash Reclaimed", desc: "Recover a death cache" },
   { id: "a11", name: "World Reborn", desc: "Rebirth the world for the first time" },
