@@ -10,12 +10,14 @@ import { frameIndex } from "@/game/animations"
 // SPRITES (the runtime image map) and SpriteName (the type union) are
 // derived from this, so adding a new slot is a one-place edit.
 export const SPRITE_REGISTRY = {
-  // --- Tiles (all static one-frame images) ---
-  tile_ground: { kind: "static", w: 36, h: 36, anchor: "top-left" },
-  tile_grass: { kind: "static", w: 36, h: 36, anchor: "top-left" },
-  tile_platform: { kind: "static", w: 36, h: 12, anchor: "top-left" },
-  tile_ground_delve: { kind: "static", w: 36, h: 36, anchor: "top-left" },
-  tile_platform_delve: { kind: "static", w: 36, h: 12, anchor: "top-left" },
+  // --- Tiles (all static one-frame images, sized to TILE_SIZE=16) ---
+  // Existing 36×36 source webps will downscale to 16×16 dest until you
+  // re-author at native 16×16. Platform sprites stay at ~1/3 tile height.
+  tile_ground: { kind: "static", w: 16, h: 16, anchor: "top-left" },
+  tile_grass: { kind: "static", w: 16, h: 16, anchor: "top-left" },
+  tile_platform: { kind: "static", w: 16, h: 6, anchor: "top-left" },
+  tile_ground_delve: { kind: "static", w: 16, h: 16, anchor: "top-left" },
+  tile_platform_delve: { kind: "static", w: 16, h: 6, anchor: "top-left" },
 
   // --- Player (sheet) ---
   player: {

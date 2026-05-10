@@ -17,7 +17,13 @@ interface EnemyStats {
   diveDuration?: number
 }
 
-export const TILE_SIZE = 36
+// Tile size in pixels. Reduced from 36 → 16 (Terraria's tile size) to give
+// terrain real granularity — a 1-tile bump is now half the player's height
+// (32px), which the auto step-up in physics walks over without a jump. World
+// dimensions in tile units (W, H, heightmap) doubled in levels.ts so the
+// physical world stays close to its previous size (slight ~10% shrink from
+// the non-perfect 36→16 ratio is acceptable).
+export const TILE_SIZE = 16
 
 export const VIEWPORT_WIDTH = 880
 export const VIEWPORT_HEIGHT = 520

@@ -23,12 +23,17 @@ type CellRow = [x: number, y: number]
 //   - Portals spaced ≥ 15 tiles apart so they're distinguishable in the HUD
 export function generateOverworld(seed: number): OverworldLevel {
   const rng = seedRng(seed)
-  const W = 110,
-    H = 22
+  // World size in TILES doubled to compensate for TILE_SIZE shrinking 36→16.
+  // Physical size stays roughly the same (~10% smaller from the non-perfect
+  // ratio); player feels appropriately ~2 tiles tall instead of <1 tile.
+  const W = 220,
+    H = 44
   const m: TileChar[][] = Array.from({ length: H }, () => Array<TileChar>(W).fill(" "))
 
   // Heightmap: two seeded sine layers + a couple of mesa plateaus at random
-  // x-bands so each world has visually distinct terrain.
+  // x-bands so each world has visually distinct terrain. Sine frequencies
+  // halved so the same hills/valleys span the doubled tile-count; amplitudes
+  // doubled so the variation matches the same physical pixel range.
   const phase1 = rng() * Math.PI * 2
   const phase2 = rng() * Math.PI * 2
   const amp1 = 1 + rng() * 1.2
@@ -36,21 +41,21 @@ export function generateOverworld(seed: number): OverworldLevel {
   const mesas: { from: number; to: number; y: number }[] = []
   const mesaCount = randInt(rng, 2, 4)
   for (let i = 0; i < mesaCount; i++) {
-    const from = randInt(rng, 8, W - 18)
-    const to = from + randInt(rng, 6, 12)
-    const y = randInt(rng, 9, 18)
+    const from = randInt(rng, 16, W - 36)
+    const to = from + randInt(rng, 12, 24)
+    const y = randInt(rng, 18, 36)
     mesas.push({ from, to, y })
   }
 
   const g: number[] = []
   for (let x = 0; x < W; x++) {
-    let y = 16
-    y += Math.round(Math.sin(x * 0.09 + phase1) * 1.5 * amp1)
-    y += Math.round(Math.cos(x * 0.045 + phase2) * 1.4 * amp2)
+    let y = 32
+    y += Math.round(Math.sin(x * 0.045 + phase1) * 3 * amp1)
+    y += Math.round(Math.cos(x * 0.0225 + phase2) * 2.8 * amp2)
     for (const mesa of mesas) {
       if (x >= mesa.from && x < mesa.to) y = mesa.y
     }
-    g.push(Math.max(8, Math.min(20, y)))
+    g.push(Math.max(16, Math.min(40, y)))
   }
 
   for (let x = 0; x < W; x++) for (let y = g[x]!; y < H; y++) m[y]![x] = "#"
@@ -76,13 +81,13 @@ export function generateOverworld(seed: number): OverworldLevel {
     return null
   }
 
-  const npcX = findFlatSpot([8, 30], 12) ?? 10
+  const npcX = findFlatSpot([16, 60], 24) ?? 20
   m[g[npcX]! - 1]![npcX] = "n"
 
   // Merchant — placed somewhere in the middle bands so the player encounters
   // them naturally on the way to a portal. Independent flat-spot search; the
   // taken[] de-dupe makes sure they're not on top of the Elder or a portal.
-  const merchantX = findFlatSpot([35, 90], 12) ?? 50
+  const merchantX = findFlatSpot([70, 180], 24) ?? 100
   m[g[merchantX]! - 1]![merchantX] = "M"
 
   // Try for 6 portals across the width. If a band fails (too few flats), the
@@ -90,12 +95,12 @@ export function generateOverworld(seed: number): OverworldLevel {
   // in Phase C — pairs with the Rebirth dialog which rerolls the world when
   // every portal in s.portals is destroyed.
   const portalBands: [number, number][] = [
-    [32, 44],
-    [44, 56],
-    [56, 68],
-    [68, 80],
-    [80, 92],
-    [92, 105],
+    [64, 88],
+    [88, 112],
+    [112, 136],
+    [136, 160],
+    [160, 184],
+    [184, 210],
   ]
   for (const band of portalBands) {
     const px = findFlatSpot(band) ?? band[0]
@@ -103,15 +108,15 @@ export function generateOverworld(seed: number): OverworldLevel {
   }
 
   // Floating platforms — count scales with W. Each placed at a random x where
-  // the platform height clears the ground by at least 3 tiles so it's not
-  // buried inside a hill.
-  const platCount = randInt(rng, 8, 14)
+  // the platform height clears the ground by at least 6 tiles so it's not
+  // buried inside a hill (was 3 before tile size was halved).
+  const platCount = randInt(rng, 16, 28)
   for (let i = 0; i < platCount; i++) {
-    const len = randInt(rng, 3, 5)
-    const x = randInt(rng, 4, W - len - 4)
+    const len = randInt(rng, 6, 10)
+    const x = randInt(rng, 8, W - len - 8)
     const groundY = Math.min(...g.slice(x, x + len))
     if (groundY === undefined) continue
-    const y = randInt(rng, Math.max(4, groundY - 8), groundY - 3)
+    const y = randInt(rng, Math.max(8, groundY - 16), groundY - 6)
     for (let j = 0; j < len; j++) {
       const row = m[y]
       if (row && x + j < W && row[x + j] === " ") row[x + j] = "="
@@ -120,20 +125,20 @@ export function generateOverworld(seed: number): OverworldLevel {
 
   // Cells scattered: half on platforms (above the platform tile), half on
   // open air just above ground level. Counts scale with W.
-  const cellCount = randInt(rng, 8, 14)
+  const cellCount = randInt(rng, 16, 28)
   for (let i = 0; i < cellCount; i++) {
-    const x = randInt(rng, 4, W - 5)
+    const x = randInt(rng, 8, W - 10)
     // Try to find a "=" platform in this column to perch on; else float
     // above the ground.
     let placedY = -1
-    for (let y = 4; y < H - 2; y++) {
+    for (let y = 8; y < H - 4; y++) {
       if (m[y]?.[x] === "=" && m[y - 1]?.[x] === " ") {
         placedY = y - 1
         break
       }
     }
     if (placedY === -1) {
-      placedY = g[x]! - randInt(rng, 1, 3)
+      placedY = g[x]! - randInt(rng, 2, 6)
     }
     if (placedY > 1 && m[placedY]?.[x] === " ") {
       m[placedY]![x] = "c"
@@ -141,8 +146,8 @@ export function generateOverworld(seed: number): OverworldLevel {
   }
 
   // Spawn at the leftmost flat patch the player can stand on without sliding.
-  let spawnX = 3
-  for (let x = 2; x < 10; x++) {
+  let spawnX = 6
+  for (let x = 4; x < 20; x++) {
     if (isFlat3(x)) {
       spawnX = x
       break
@@ -320,8 +325,10 @@ export function generateDelve(seed: number, tier = 0): DelveLevel {
   const rng = seedRng(seed)
 
   // Width varies per seed; tier 1 stretches the corridor for longer runs.
-  const W = randInt(rng, 40, 70) + tier * 8
-  const H = 18
+  // Doubled (from 40-70 + tier*8) to compensate for halved TILE_SIZE so the
+  // physical corridor length stays comparable.
+  const W = randInt(rng, 80, 140) + tier * 16
+  const H = 36
 
   const m: TileChar[][] = Array.from({ length: H }, () => Array<TileChar>(W).fill(" "))
 
@@ -335,6 +342,7 @@ export function generateDelve(seed: number, tier = 0): DelveLevel {
   }
 
   // Platform count scales with width: roughly 1 platform per 6-9 tiles.
+  // Formulas reference W which already doubled, so platCount auto-scales.
   const platMin = Math.max(4, Math.floor(W / 9))
   const platMax = Math.max(platMin + 2, Math.floor(W / 5))
   const platCount = randInt(rng, platMin, platMax)
@@ -342,9 +350,9 @@ export function generateDelve(seed: number, tier = 0): DelveLevel {
   type Plat = { x: number; y: number; w: number }
   const plats: Plat[] = []
   for (let i = 0; i < platCount; i++) {
-    const len = randInt(rng, 3, 6)
-    const x = randInt(rng, 3, W - len - 3)
-    const y = randInt(rng, 4, H - 5)
+    const len = randInt(rng, 6, 12)
+    const x = randInt(rng, 6, W - len - 6)
+    const y = randInt(rng, 8, H - 10)
     plats.push({ x, y, w: len })
     for (let j = 0; j < len; j++) m[y]![x + j] = "="
   }
@@ -359,8 +367,8 @@ export function generateDelve(seed: number, tier = 0): DelveLevel {
 
   // Big cache + return portal anchored at the far end so the player has to
   // traverse the whole corridor.
-  m[H - 2]![W - 5] = "C"
-  m[H - 2]![W - 3] = "r"
+  m[H - 2]![W - 10] = "C"
+  m[H - 2]![W - 6] = "r"
 
   // Enemy count scales with width and tier. Half spawn on platforms, half on
   // the floor — ghosts pass through walls anyway, so floor placement just
@@ -396,11 +404,11 @@ export function generateDelve(seed: number, tier = 0): DelveLevel {
       })
     } else {
       // Floor placement, kept clear of spawn (left) and exit (right) zones.
-      const ex = randInt(rng, 8, W - 8)
+      const ex = randInt(rng, 16, W - 16)
       enemySpawns.push({
         type,
         x: ex * TILE_SIZE,
-        y: (H - 3) * TILE_SIZE,
+        y: (H - 6) * TILE_SIZE,
       })
     }
   }
@@ -409,7 +417,7 @@ export function generateDelve(seed: number, tier = 0): DelveLevel {
     map: m,
     W,
     H,
-    spawn: { x: 3 * TILE_SIZE, y: (H - 3) * TILE_SIZE },
+    spawn: { x: 6 * TILE_SIZE, y: (H - 6) * TILE_SIZE },
     theme: "delve",
     enemySpawns,
     seed,
