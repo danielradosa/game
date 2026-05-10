@@ -28,6 +28,12 @@ export function draw(ctx: Ctx, s: GameState, ch: Character, alpha: number): void
   const cv = ctx.canvas
   const scale = cv.width / VIEWPORT_WIDTH
   ctx.setTransform(scale, 0, 0, scale, 0, 0)
+  // Pixel-art friendly: disable bilinear filtering. Without this, sprites at
+  // fractional DPR (e.g., 1.5× on some Windows displays) fade their last
+  // pixel column toward transparency and adjacent tiles appear to have hairline
+  // gaps. Has to be set after every setTransform — the property survives,
+  // but being explicit here makes the intent obvious.
+  ctx.imageSmoothingEnabled = false
 
   // Render-time interpolation: physics ticks at fixed 60 Hz, render at native
   // refresh. Lerp player + camera between pre-tick and post-tick state so the
@@ -39,8 +45,8 @@ export function draw(ctx: Ctx, s: GameState, ch: Character, alpha: number): void
     realCy = s.cam.y
   s.p.x = s.p.renderPrevX + (realPx - s.p.renderPrevX) * alpha
   s.p.y = s.p.renderPrevY + (realPy - s.p.renderPrevY) * alpha
-  s.cam.x = s.prevCamX + (realCx - s.prevCamX) * alpha
-  s.cam.y = s.prevCamY + (realCy - s.prevCamY) * alpha
+  s.cam.x = Math.round(s.prevCamX + (realCx - s.prevCamX) * alpha)
+  s.cam.y = Math.round(s.prevCamY + (realCy - s.prevCamY) * alpha)
 
   const lv = s.level
   ctx.save()
