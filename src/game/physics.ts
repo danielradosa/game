@@ -494,7 +494,12 @@ export function stepGame(
       addParticles(s, p.x + PLAYER_WIDTH / 2, p.y + PLAYER_HEIGHT / 2, 1, ch.accent, 1.5)
   }
 
-  // ---- horizontal collision (sets wallDir) ----
+  // ---- horizontal collision (sets wallDir, with step-up support) ----
+  // When the player walks into a short obstacle (≤ 1 tile tall) on the
+  // ground with headroom above, lift them onto its surface instead of
+  // blocking. Lets terrain feel "hikeable" — small lumps don't require
+  // a jump. Disabled while dashing/sliding so committed trajectories
+  // aren't perturbed by terrain.
   p.x += p.vx
   p.wallDir = 0
   {
@@ -502,19 +507,58 @@ export function stepGame(
       right = Math.floor((p.x + PLAYER_WIDTH - 1) / TILE_SIZE)
     const top = Math.floor(p.y / TILE_SIZE),
       bottom = Math.floor((p.y + PLAYER_HEIGHT - 1) / TILE_SIZE)
-    for (let ty = top; ty <= bottom; ty++)
-      for (let tx = left; tx <= right; tx++) {
-        if (isSolid(map[ty]?.[tx])) {
-          if (p.vx > 0) {
-            p.x = tx * TILE_SIZE - PLAYER_WIDTH
-            p.wallDir = 1
-          } else if (p.vx < 0) {
-            p.x = (tx + 1) * TILE_SIZE
-            p.wallDir = -1
+
+    let stepHandled = false
+    if (p.onGround && p.dashFrames <= 0 && !p.sliding && Math.abs(p.vx) > 0.1) {
+      // Find the highest obstacle top across the player's tile span.
+      let highestObstacleTop = Number.POSITIVE_INFINITY
+      for (let ty = top; ty <= bottom; ty++) {
+        for (let tx = left; tx <= right; tx++) {
+          if (isSolid(map[ty]?.[tx])) {
+            const obstacleTop = ty * TILE_SIZE
+            if (obstacleTop < highestObstacleTop) highestObstacleTop = obstacleTop
           }
-          p.vx = 0
         }
       }
+      const STEP_UP_MAX = TILE_SIZE // 1 tile = 36px
+      if (
+        highestObstacleTop !== Number.POSITIVE_INFINITY &&
+        p.y + PLAYER_HEIGHT - highestObstacleTop <= STEP_UP_MAX
+      ) {
+        const newY = highestObstacleTop - PLAYER_HEIGHT
+        const newTop = Math.floor(newY / TILE_SIZE)
+        const newBottom = Math.floor((newY + PLAYER_HEIGHT - 1) / TILE_SIZE)
+        let headroom = true
+        for (let ty = newTop; ty <= newBottom && headroom; ty++) {
+          for (let tx = left; tx <= right && headroom; tx++) {
+            if (isSolid(map[ty]?.[tx])) headroom = false
+          }
+        }
+        if (headroom) {
+          p.y = newY
+          // Snap the render-prev Y so the step-up reads as a smooth
+          // continuation rather than a vertical lerp pop.
+          p.renderPrevY = newY
+          stepHandled = true
+        }
+      }
+    }
+
+    if (!stepHandled) {
+      for (let ty = top; ty <= bottom; ty++)
+        for (let tx = left; tx <= right; tx++) {
+          if (isSolid(map[ty]?.[tx])) {
+            if (p.vx > 0) {
+              p.x = tx * TILE_SIZE - PLAYER_WIDTH
+              p.wallDir = 1
+            } else if (p.vx < 0) {
+              p.x = (tx + 1) * TILE_SIZE
+              p.wallDir = -1
+            }
+            p.vx = 0
+          }
+        }
+    }
   }
   // ---- map edge clamp (both overworld + delve) ----
   // Hard wall at the left/right edges of the level so the player can't walk
