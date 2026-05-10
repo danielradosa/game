@@ -101,11 +101,45 @@ export function tryDrawSprite(
   return true
 }
 
-// Explicit imports — auto-loader replaces these in Task 3.
-import tileGroundSrc from "@/assets/sprites/tile_ground.webp"
-import tileGrassSrc from "@/assets/sprites/tile_grass.webp"
-import tilePlatformSrc from "@/assets/sprites/tile_platform.webp"
+// Auto-load: every .webp or .png in src/assets/sprites/ is bound to the
+// matching slot in SPRITE_REGISTRY by filename. webp wins on collision
+// (so a .png draft can coexist with a final .webp).
+//
+// Adding new art: drop the file, done. Brand-new slots still need a
+// SPRITE_REGISTRY entry (sizing/anchor/kind) — but no import wiring.
+//
+// Files prefixed with "_" are skipped silently — useful for in-progress
+// drafts you don't want bound yet (e.g. _player_v2.webp).
 
-SPRITES.tile_ground = loadSprite(tileGroundSrc)
-SPRITES.tile_grass = loadSprite(tileGrassSrc)
-SPRITES.tile_platform = loadSprite(tilePlatformSrc)
+const webpModules = import.meta.glob<{ default: string }>(
+  "@/assets/sprites/*.webp",
+  { eager: true },
+)
+const pngModules = import.meta.glob<{ default: string }>(
+  "@/assets/sprites/*.png",
+  { eager: true },
+)
+
+function bindSpriteModules(modules: Record<string, { default: string }>): void {
+  for (const path in modules) {
+    const match = path.match(/\/([^/]+)\.(webp|png)$/)
+    if (!match) continue
+    const slot = match[1]!
+    if (slot.startsWith("_")) continue // draft files
+    if (!(slot in SPRITE_REGISTRY)) {
+      if (import.meta.env.DEV) {
+        console.warn(
+          `[sprites] orphan asset ${path} — no slot named "${slot}" in SPRITE_REGISTRY. ` +
+            `Either rename the file or add the slot to the registry.`,
+        )
+      }
+      continue
+    }
+    const slotName = slot as SpriteName
+    if (SPRITES[slotName]) continue // webp already bound; skip png
+    SPRITES[slotName] = loadSprite(modules[path]!.default)
+  }
+}
+
+bindSpriteModules(webpModules) // webp first → wins on collision
+bindSpriteModules(pngModules)
