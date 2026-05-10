@@ -145,7 +145,16 @@ export function tryDrawSprite(
     dx = x - spec.w / 2
     dy = y - spec.h
   }
-  ctx.drawImage(s, Math.round(dx), Math.round(dy), spec.w, spec.h)
+  // Tile overdraw: top-left anchored sprites (only tiles use this anchor)
+  // get drawn 1px wider+taller than their nominal size so adjacent tiles
+  // overlap by 1 source pixel. This covers any sub-pixel seam artifacts
+  // that survive imageSmoothingEnabled=false + image-rendering:pixelated
+  // — modern browsers can still produce 1px alpha bleed at tile boundaries
+  // when the canvas backbuffer is scaled to a fractional DPR. Other anchors
+  // (center, bottom-center) are solo entities where overdraw doesn't help
+  // and could cause visible bleed.
+  const overdraw = spec.anchor === "top-left" ? 1 : 0
+  ctx.drawImage(s, Math.round(dx), Math.round(dy), spec.w + overdraw, spec.h + overdraw)
   return true
 }
 
