@@ -2,53 +2,54 @@
 //   tryDrawSprite(ctx, "tile_grass", x, y)
 // with autocomplete on the name and a build error for typos.
 
-export type SpriteName =
-  | "player"
-  | "tile_ground"
-  | "tile_grass"
-  | "tile_platform"
-  | "collectible"
-  | "cache"
-  | "portal_delve"
-  | "portal_delve_hard"
-  | "portal_destroyed"
-  | "portal_return"
-  | "npc_elder"
-  | "npc_merchant"
-  // legacy alias kept for the procedural fallback path; prefer npc_elder
-  | "npc"
-  | "enemy_ghost"
-  | "enemy_slammer"
-  | "enemy_spitter"
-  | "enemy_burrower"
-  | "projectile"
-  // Per-weapon slash visuals — replace the procedural arc when a sprite is
-  // loaded. Drawn at the slash anchor with bottom-center anchor; mirrored
-  // automatically based on player.facing.
-  | "weapon_worn"
-  | "weapon_forged"
-  | "weapon_honed"
-  // Mod auras / per-effect overlays. Render code attempts these first then
-  // falls back to the procedural particles/arcs.
-  | "aura_searing"
-  | "aura_stormbound"
-  | "aura_glacial"
-  | "aura_sanguine"
-  | "tile_ground_delve"
-  | "tile_platform_delve"
-
-// How to position the sprite relative to the (x, y) draw point passed in.
+// How to position the sprite relative to the (x, y) draw point.
 //   "top-left"      — (x, y) is the upper-left corner
 //   "center"        — (x, y) is the center
 //   "bottom-center" — (x, y) is the bottom-center (used for characters/portals
 //                     so the feet/base anchor to a ground tile)
 export type SpriteAnchor = "top-left" | "center" | "bottom-center"
 
+// One animation in a "sheet" sprite — a row in the grid.
+export interface SheetAnimation {
+  row: number
+  frames: number
+  fps: number
+  loop: boolean
+}
+
+// Discriminated union of slot kinds. Add `kind: "atlas"` here in v2
+// when TexturePacker / Aseprite JSON support lands.
+export type SpriteSpec =
+  | { kind: "static"; w: number; h: number; anchor: SpriteAnchor }
+  | {
+      kind: "strip"
+      frameW: number
+      frameH: number
+      anchor: SpriteAnchor
+      frames: number
+      fps: number
+      loop: boolean
+    }
+  | {
+      kind: "sheet"
+      frameW: number
+      frameH: number
+      anchor: SpriteAnchor
+      animations: Record<string, SheetAnimation>
+    }
+
+// Back-compat: existing render.ts calls do `ASSET_SIZES.player` and read .w
+// /.h/.anchor. The registry's "static" variant carries those fields directly,
+// and animated variants expose frameW/frameH instead — call sites that read
+// .w/.h need to handle both. Keep this alias so non-animated call sites
+// don't have to change.
 export interface AssetSpec {
   w: number
   h: number
   anchor: SpriteAnchor
 }
 
-export type AssetSizes = Record<SpriteName, AssetSpec>
-export type SpriteMap = Record<SpriteName, HTMLImageElement | null>
+// Note: the runtime SpriteName / AssetSizes / SpriteMap types are exported
+// from sprites.ts (derived from SPRITE_REGISTRY's keys) — having them
+// declared there keeps the single-source-of-truth shape working with TS's
+// `keyof typeof` inference.
