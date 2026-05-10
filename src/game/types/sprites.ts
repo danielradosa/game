@@ -38,18 +38,6 @@ export type SpriteSpec =
       animations: Record<string, SheetAnimation>
     }
 
-// Back-compat: existing render.ts calls do `ASSET_SIZES.player` and read .w
-// /.h/.anchor. The registry's "static" variant carries those fields directly,
-// and animated variants expose frameW/frameH instead — call sites that read
-// .w/.h need to handle both. Keep this alias so non-animated call sites
-// don't have to change.
-export interface AssetSpec {
-  w: number
-  h: number
-  anchor: SpriteAnchor
-}
-
-// Note: the runtime SpriteName / AssetSizes / SpriteMap types are exported
-// from sprites.ts (derived from SPRITE_REGISTRY's keys) — having them
-// declared there keeps the single-source-of-truth shape working with TS's
-// `keyof typeof` inference.
+// Note: the runtime SpriteName / SpriteMap types are exported from sprites.ts
+// (derived from SPRITE_REGISTRY's keys) — having them declared there keeps the
+// single-source-of-truth shape working with TS's `keyof typeof` inference.

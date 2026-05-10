@@ -2,7 +2,7 @@
 // src/assets/sprites/<slot>.<ext> and the auto-loader binds it to the matching
 // slot in SPRITE_REGISTRY. webp wins if both extensions exist.
 // All character sprites must face RIGHT — renderer mirrors automatically.
-import type { AssetSpec, SheetAnimation, SpriteAnchor, SpriteSpec } from "@/game/types/sprites"
+import type { SheetAnimation, SpriteAnchor, SpriteSpec } from "@/game/types/sprites"
 import loadSprite from "@/lib/spriteHelper"
 import { frameIndex } from "@/game/animations"
 
@@ -111,18 +111,11 @@ export const SPRITE_REGISTRY = {
 // Derived types — one source of truth.
 export type SpriteName = keyof typeof SPRITE_REGISTRY
 export type SpriteMap = Record<SpriteName, HTMLImageElement | null>
-export type AssetSizes = Record<SpriteName, AssetSpec>
 
-// Runtime image map — every slot starts null. Auto-loader (Task 3) populates.
+// Runtime image map — every slot starts null. Auto-loader (below) populates.
 export const SPRITES: SpriteMap = Object.fromEntries(
   (Object.keys(SPRITE_REGISTRY) as SpriteName[]).map((k) => [k, null]),
 ) as SpriteMap
-
-// Back-compat alias. render.ts call sites read ASSET_SIZES[name].w/.h/.anchor.
-// For "static" slots those fields are direct. For animated kinds, the same
-// fields don't exist as-is — callers that need the FRAME size on animated
-// slots should switch to reading .frameW/.frameH (handled in Task 6).
-export const ASSET_SIZES = SPRITE_REGISTRY as unknown as AssetSizes
 
 // Type predicate: narrows `s` from `HTMLImageElement | null` to
 // `HTMLImageElement` so call sites don't need their own null check.
