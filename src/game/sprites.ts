@@ -2,8 +2,9 @@
 // src/assets/sprites/<slot>.<ext> and the auto-loader binds it to the matching
 // slot in SPRITE_REGISTRY. webp wins if both extensions exist.
 // All character sprites must face RIGHT — renderer mirrors automatically.
-import type { AssetSpec, SpriteSpec } from "@/game/types/sprites"
+import type { AssetSpec, SheetAnimation, SpriteAnchor, SpriteSpec } from "@/game/types/sprites"
 import loadSprite from "@/lib/spriteHelper"
+import { frameIndex } from "@/game/animations"
 
 // Single source of truth: sizing + anchor + animation kind for every slot.
 // SPRITES (the runtime image map) and SpriteName (the type union) are
@@ -98,6 +99,110 @@ export function tryDrawSprite(
     dy = y - spec.h
   }
   ctx.drawImage(s, Math.round(dx), Math.round(dy), spec.w, spec.h)
+  return true
+}
+
+// Draw a frame from an animated slot. anim is ignored for "strip" kind
+// (single anim per slot); for "sheet" kind it must be a key in
+// spec.animations. Returns false if the slot is empty, not loaded, or
+// not an animated kind — caller falls back to its procedural path.
+//
+// `time` is in physics ticks (pass s.time directly). One-shot anims
+// clamp to their last frame after duration, so the renderer holds the
+// final pose until the caller selects a different anim.
+//
+// `mirror` flips the frame horizontally (for left-facing entities). The
+// caller is responsible for already having translated to the entity's
+// position — this function just blits the frame at (x, y) with anchor
+// applied. Mirroring uses ctx.scale internally; caller does NOT need to
+// wrap with save/restore.
+export function tryDrawAnimated(
+  ctx: CanvasRenderingContext2D,
+  name: SpriteName,
+  x: number,
+  y: number,
+  anim: string,
+  time: number,
+  mirror: boolean = false,
+): boolean {
+  const img = SPRITES[name]
+  if (!isReady(img)) return false
+  // Cast to SpriteSpec so TypeScript narrows on the discriminated `kind` union.
+  // SPRITE_REGISTRY is `as const` so each slot's kind is a literal — without
+  // the cast the compiler sees e.g. kind:"static" and rejects kind==="strip".
+  const spec = SPRITE_REGISTRY[name] as SpriteSpec
+
+  let frameW: number, frameH: number, anchor: SpriteAnchor, srcX: number, srcY: number
+
+  if (spec.kind === "strip") {
+    frameW = spec.frameW
+    frameH = spec.frameH
+    anchor = spec.anchor
+    const f = frameIndex(spec.frames, spec.fps, spec.loop, time)
+    srcX = f * frameW
+    srcY = 0
+  } else if (spec.kind === "sheet") {
+    const a: SheetAnimation | undefined = spec.animations[anim]
+    if (!a) {
+      if (import.meta.env.DEV) {
+        console.warn(`[sprites] sheet "${name}" has no animation "${anim}"`)
+      }
+      return false
+    }
+    frameW = spec.frameW
+    frameH = spec.frameH
+    anchor = spec.anchor
+    const f = frameIndex(a.frames, a.fps, a.loop, time)
+    srcX = f * frameW
+    srcY = a.row * frameH
+  } else {
+    // kind: "static" — caller should use tryDrawSprite instead.
+    return false
+  }
+
+  // Compute destination top-left from anchor.
+  let dx = x,
+    dy = y
+  if (anchor === "center") {
+    dx = x - frameW / 2
+    dy = y - frameH / 2
+  } else if (anchor === "bottom-center") {
+    dx = x - frameW / 2
+    dy = y - frameH
+  }
+
+  if (mirror) {
+    ctx.save()
+    // Mirror around the entity's anchor x (already encoded in dx/x).
+    // Translate to mirror axis, scale -1, draw at -frameW so the flipped
+    // frame still occupies the same destination rect.
+    ctx.translate(Math.round(x), 0)
+    ctx.scale(-1, 1)
+    ctx.drawImage(
+      img,
+      srcX,
+      srcY,
+      frameW,
+      frameH,
+      Math.round(-x + dx) - frameW,
+      Math.round(dy),
+      frameW,
+      frameH,
+    )
+    ctx.restore()
+  } else {
+    ctx.drawImage(
+      img,
+      srcX,
+      srcY,
+      frameW,
+      frameH,
+      Math.round(dx),
+      Math.round(dy),
+      frameW,
+      frameH,
+    )
+  }
   return true
 }
 
